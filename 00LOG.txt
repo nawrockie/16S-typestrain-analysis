@@ -1,0 +1,1935 @@
+EPN, Thu Aug 10 14:48:03 2017
+
+<[(17_0810_typestrain_genome_coords)]> pwd
+/panfs/pan1/infernal/notebook/17_0810_typestrain_genome_coords
+
+Purpose: For sequences in the 16S type strain database that originate
+         from larger source sequences, use Infernal/Rfam to see if
+         the boundaries and consequently the sequences should be
+         modified.
+
+Related dir:
+/panfs/pan1/infernal/notebook/17_0613_inf_16S_annotation_example
+/panfs/pan1/infernal/notebook/17_0622_rfam_16S_model_bounds
+
+JIRA: GP-20915
+=============================
+EPN, Thu Aug 10 14:49:20 2017
+
+JIRA post I made on July 18:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+I've done some analysis on how well the type strain dataset aligns to
+the Rfam SSU rRNA models. This analysis was based on the type strain
+dataset obtained with the following edirect commands on June 22, 2017:
+
+Bacteria:
+esearch -db nuccore -query "(33175[bioproject]) AND (sequence from
+type[filter] OR sequence from synonym type[filter])" | efetch -format
+acc > bac.18171.ntlist
+
+Archaea:
+esearch -db nuccore -query "(33317[bioproject]) AND (sequence from
+type[filter] OR sequence from synonym type[filter])" | efetch -format
+acc > arc.927.ntlist
+
+Which resulted in 18171 and 927 sequences, respectively. Both .ntlist
+files are attached.
+
+What I did so far for these two sequence datasets:
+
+Run Infernal 1.1.2's cmalign program with the Rfam 12.2 Bacterial SSU
+rRNA model (RF00177) and the 18,171 bacterial sequences, and with the
+Rfam 12.2 Archaeal SSU rRNA model (RF01959) against 926 of the 927
+archaeal sequences. One archaeal sequence (NR_134083.1) was determined
+not to be a 16S and reported to Rich McVeigh via email, and he removed
+it from the type strain set.
+
+The commands I used were:
+
+cmalign -o bac.18171.stk --cpu 0 --ifile bac.18171.ifile --elfile
+bac.18171.elfile RF00177.cm bac.18171.fa > bac.18171.cmalign
+and
+
+cmalign -o arc.926.cmalign.stk --cpu 0 --ifile arc.926.ifile --elfile
+arc.926.elfile RF01959.cm arc.926.fa > arc.926.cmalign"
+
+Then I used a perl script to determine the starting position of each
+sequence in each Rfam model. I'm attaching here two files that show
+the counts for each position (arc.926.1.histo.txt and
+bac.18171.1.histo.txt) which show how many sequences start and end at
+each position.
+
+There are two types of lines in each of these files, those that begin
+with 'start position' and those that begin with 'stop position'. For
+example, in the bac.18171.1.histo.txt file:
+start position 1: 396 (0.0218)
+
+This line means that 396 of the bacterial sequences (2.18%) start at
+position 1 of the bacterial Rfam model.
+
+Similarly: 
+stop position 1533: 989 (0.0544)
+
+Means that 989 sequences (5.44%) end at position 1533 of the Rfam
+model. Position 1533 is the final position of the model. Sequences
+that end after position 1533 include some nucleotides that extend
+past the end of the Rfam model.
+
+The archaeal file (arc.926.1.histo.txt) has the same format, but the
+final model position is 1477, not 1533.
+The archaeal sequences are fairly well behaved in that nearly half of
+the sequences start at position 1 and end at the final position
+(1477), and positions 1 and 1477 are by far the most common start and
+stop positions, respectively.
+
+The bacterial set has much more variation in starting and stopping
+positions. The most common starting position is 28 with 21.4% of the
+sequences. As Rich pointed out to me, this is very close to the
+universal primer site 27F. Position 1 is the 6th most common position
+with 2.2% of the sequences. The most common bacterial stop position is
+1482 with 7.3%, which is close to the universal primer site 1492R (the
+primer names/positions correspond to Ecoli positions; 1492R
+corresponds to position 1480 of the Rfam model). The final position of
+the model (1533) is the second most common stop position at 5.4%.
+I spoke with Rich about these results and we discussed the next steps
+I will take, which include:
+
+1) looking into potentially problematic sequences that 'fail' a new
+tool we've been developing for vetting 16S sequence submissions
+called Ribosensor. About 300 type strain sequences 'fail'
+Ribosensor. Most of these are for an error that often occurs with
+perfectly fine sequences that have a larger than usual insert (and
+so most of these are probably perfectly fine), but I want to look at
+them in more detail.
+
+2) looking into sequences which originate from larger source sequences
+(e.g. genomes), compare Infernal/Rfam cmsearch annotation (16S
+boundaries) of those larger source sequences to the boundaries used
+in the type strain subsequences
+
+3) given a list of known introns from Rich, see if Infernal/Rfam
+predictions could be used to identify these, and possibly other,
+introns
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The purpose of this directory is to look into 2) above:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~
+2) looking into sequences which originate from larger source sequences
+(e.g. genomes), compare Infernal/Rfam cmsearch annotation (16S
+boundaries) of those larger source sequences to the boundaries used
+in the type strain subsequences
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Relevant email from Rich, received 7/18:
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Eric
+
+This file has a list of all the NG and NR accessions from the type
+strain reference set mapped to the original source accession and the
+nucleotide spans of the original accession that were used.
+
+/net/snowman/vol/export2/mcveigh/rRNA_typestrains/NR.map
+
+One like this are from a genome
+NG_041957|CP003316:1430990-1433181|
+The question is whether 1430990-1433181 truly represents the
+boundaries of the 16S gene.
+
+Ones like this were examples where the original sequence as entirely
+16S rRNA
+NR_024631|AF367204:1-1452|
+
+Rich
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Getting that file:
+<[(17_0810_typestrain_genome_coords)]> cp /net/snowman/vol/export2/mcveigh/rRNA_typestrains/NR.map ./orig-files/
+
+There were 17 lines in that file that did not match the expected
+format:
+
+<[(17_0810_typestrain_genome_coords)]> grep ^\# man.NR.map
+#NG_041941|FR754498|
+#NR_028963|AJ418048|
+#NR_029182|602259356_0_1651_1|
+#NR_040790|553238434_0_1641_1|
+#NR_040935|602260090_0_2167_1|
+#NR_040973|553238484_0_1561_1|
+#NR_044847|604018092_0_1691_1|
+#NR_102764|507147957_0_2210_1|
+#NR_102765| 507147958_0_2191_1|
+#NR_102766|507147959_0_2191_1|
+#NR_102767|507147960_0_1720_1|
+#NR_102768|507147961_0_1640_1|
+#NR_102770|507147963_0_1611_1|
+#NR_102972|507148165_0_1675_1|
+#NR_102988| 56636  507148181_0_2196_1|
+#NR_102989|507148182_0_2206_1|
+#NR_108510|FR754498|
+#NR_112034|631250838_0_2129_1|
+#NR_118373|645321397_0_1460_1|
+#NR_118661|645321772_0_1450_1|
+#NR_121692|659364497_0_1647_1|
+#NR_133017|940377017_0_1374_1|
+
+
+Now fetching all the sources:
+<[(17_0810_typestrain_genome_coords)]> perl map2acc.pl man.NR.map > 19167.ntlist
+19167
+<[(17_0810_typestrain_genome_coords)]> perl map2acc.pl man.NR.map > 19167.ntlist
+<[(17_0810_typestrain_genome_coords)]> idfetchacc 19167.ntlist > 19167.fa &
+[1] 83581
+
+And strategy is to go through and check which have coordinates that
+span the full sequence, and which are subsequences.
+
+For all full sequences and subsequences: 
+run cmsearch using RF00177 and RF01959, and see if any hits overlap
+with annotated hits
+
+For the full sequences, we should see 100% agreement between cmsearch
+prediction and 
+
+--------------------
+Running ribotyper on these:
+
+<[(17_0810_typestrain_genome_coords)]> esl-seqstat -a 19167.fa > 19167.seqstat &
+[1] 88296
+<[(17_0810_typestrain_genome_coords)]> cat run-ribosensor.sh 
+ribotyper.pl 19167.fa rt-19167 > rt-19167.ribotyper.out
+<[(17_0810_typestrain_genome_coords)]> sh run-ribosensor.sh 
+
+
+
+ERROR, not all sequences in input sequence file have a unique name. They must.
+List of sequences that occur more than once, with number of occurrences:
+	(1) gi|166855265|gb|CP000924.1| 2
+	(2) gi|217335548|gb|CP001251.1| 2
+	(3) gi|219536331|gb|CP001336.1| 5
+	(4) gi|225791207|gb|CP001472.1| 2
+	(5) gi|359350094|gb|CP003155.1| 2
+	(6) gi|3721519|gb|U13037.1|ESU13037 2
+	(7) gi|523439782|gb|CP006252.1| 2
+	(8) gi|541129943|gb|CP006718.1| 4
+	(9) gi|549807177|gb|CP006721.1| 3
+	(10) gi|55229667|gb|AY596297.1| 2
+	(11) gi|570956116|gb|AZUP01000001.1| 2
+	(12) gi|578005119|gb|CP007155.1| 2
+	(13) gi|582015241|gb|CP004350.1| 3
+	(14) gi|597812552|gb|CP007446.1| 2
+	(15) gi|605572277|gb|CP004078.1| 6
+	(16) gi|656326619|emb|HG934468.1| 2
+	(17) gi|672365514|gb|CP009149.1| 2
+	(18) gi|761896199|gb|CP010836.1| 2
+	(19) gi|984998361|gb|CP013213.1| 4
+
+<[(17_0810_typestrain_genome_coords)]> esl-seqstat 19135.uniq.fa
+Format:              FASTA
+Alphabet type:       DNA
+Number of sequences: 19135
+Total # residues:    2665225186
+Smallest:            302
+Largest:             10467782
+Average length:      139285.4
+
+<[(17_0810_typestrain_genome_coords)]> cat run-ribosensor.sh 
+#ribotyper.pl 19167.fa rt-19167 > rt-19167.ribotyper.out
+ribotyper.pl 19135.uniq.fa rt-19135 > rt-19135.ribotyper.out
+<[(17_0810_typestrain_genome_coords)]> sh run-ribosensor.sh &
+[1] 93304
+
+=======================================
+EPN, Fri Aug 11 09:51:33 2017
+
+Okay, I need to split these into archaea and bacteria. I was hoping
+ribotyper could do that, and it can, but the run I started yesterday
+died because I ran out of disk space, and I don't want to wait for it
+to finish at this point.
+
+Rethinking this. I want this to be reproducible for any coreset file.
+
+Input:
+1. 16S typestrain sequence file
+2. sequence file of all source sequences in map file
+3. map file
+
+Steps:
+1. run ribotyper on 16S typestrain to classify archaea v bacteria
+for each $i in archaea and bacteria:
+2. fetch $i typeset seqs to $i.type.fa
+3. fetch $i source seqs to $i.source.fa
+4. classify each seq as subseq or fullseq and save this info
+5. run cmsearch using appropriate model
+6. look for overlaps between cmsearch and map
+7. output
+
+Output:
+1. for each sequence in map file:
+
+domain accession source full-or-sub current-coords cmsearch-coords 
+
+Summary stats:
+- for each domain
+  - for each class (full or sub)
+    how many current-coords agree with cmsearch-coords at 5' end, 3' end, both ends? 
+
+-----------------
+Okay, before I can start, I need to get the map file correct.
+
+That means taking the 17 sequences that are incorrect and fixing them.
+
+I just realized that it seems like most of the 'errors' that have GI
+numbers listed are the sequences with introns.
+
+So I can just use those coords after verifying that none come from
+other sequences.
+
+<[(17_0810_typestrain_genome_coords)]> esl-seqstat -a 17.gi.fa
+= gi|602259356|ref|NR_029182.2|     1652 Helicobacter bilis strain Hb1 16S ribosomal RNA gene, partial sequence
+= gi|553238434|ref|NR_040790.2|     1642 Caldivirga maquilingensis strain IC-167 16S ribosomal RNA gene, partial sequence
+= gi|602260090|ref|NR_040935.2|     2168 Pyrobaculum oguniense strain TE7 16S ribosomal RNA gene, partial sequence
+= gi|553238484|ref|NR_040973.2|     1562 Aeropyrum camini strain SY1 16S ribosomal RNA gene, partial sequence
+= gi|604018092|ref|NR_044847.3|     1692 Caedibacter caryophilus strain 221 16S ribosomal RNA gene, partial sequence
+= gi|507147957|ref|NR_102764.1|     2211 Pyrobaculum aerophilum strain IM2 16S ribosomal RNA gene, complete sequence
+= gi|507147958|ref|NR_102765.1|     2192 Pyrobaculum neutrophilum strain V24Sta 16S ribosomal RNA gene, complete sequence
+= gi|507147959|ref|NR_102766.1|     2192 Pyrobaculum oguniense strain TE7 16S ribosomal RNA gene, complete sequence
+= gi|507147960|ref|NR_102767.1|     1721 Syntrophothermus lipocalidus strain DSM 12680 16S ribosomal RNA gene, complete sequence
+= gi|507147961|ref|NR_102768.1|     1641 [Clostridium] cellulolyticum strain H10 16S ribosomal RNA gene, complete sequence
+= gi|507147963|ref|NR_102770.1|     1612 Desulfotomaculum reducens MI-1 strain MI-1 16S ribosomal RNA, complete sequence
+= gi|507148165|ref|NR_102972.1|     1676 Caldivirga maquilingensis strain IC-167 16S ribosomal RNA gene, complete sequence
+= gi|507148181|ref|NR_102988.1|     2197 Aeropyrum pernix strain K1 16S ribosomal RNA gene, complete sequence
+= gi|507148182|ref|NR_102989.1|     2207 Pyrobaculum arsenaticum strain DSM 13514 16S ribosomal RNA gene, complete sequence
+= gi|631250838|ref|NR_112034.1|     2130 Pyrobaculum neutrophilum strain V24Sta 16S ribosomal RNA gene, partial sequence
+= gi|645321397|ref|NR_118373.1|     1461 Caldivirga maquilingensis strain IC-167 16S ribosomal RNA gene, partial sequence
+= gi|645321772|ref|NR_118661.1|     1451 Pyrobaculum islandicum strain GEO3 16S ribosomal RNA, partial sequence
+= gi|659364497|ref|NR_121692.1|     1648 Aeropyrum camini strain SY1 16S ribosomal RNA gene, complete sequence
+= gi|940377017|ref|NR_133017.1|     1375 Thermogladius shockii strain WB1 16S ribosomal RNA, partial sequence
+
+
+FOR FUTURE REFERENCE:
+
+after I complete the above, I may want to go back and do a second
+round of searching for larger source sequences, for example:
+
+<[(efetch-experimenting)]> esearch -db nuccore -query NR_102764 | efetch -format gpc | xtract -insd INSDSeq_comment
+NR_102764.2	REVIEWED REFSEQ: This record has been curated by NCBI staff. This record is derived from an annotated genomic sequence (AE009441).; On Apr 1, 2015 this sequence version replaced gi:507147957.
+
+NR_102764 comes from AE009441, but it comes from NG_041958 in the map
+file, because that sequence had introns removed (NG_041958 has the
+introns included).
+
+---------------
+Fetching the comments for the 17 GI accessions:
+
+<[(edirect-experimenting)]> pwd
+/panfs/pan1/infernal/notebook/17_0810_typestrain_genome_coords/edirect-experimenting
+<[(edirect-experimenting)]> cat ../19.gi.acc.ntlist | epost -db nuccore -format acc | efetch -format gpc | xtract -insd INSDSeq_comment > 19.comment.txt
+
+<[(mapping-19)]> pwd
+/panfs/pan1/infernal/notebook/17_0810_typestrain_genome_coords/mapping-19
+<[(mapping-19)]> cp ../edirect-experimenting/19.comment.txt ./
+
+<[(mapping-19)]> sh make-indi-files.sh 
+<[(mapping-19)]> cat idfetch.sh
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do 
+    idfetch -t 5 -c 1 -G 19.pair.$i.ntlist > 19.pair.$i.fa
+done
+<[(mapping-19)]> sh idfetch.sh
+<[(mapping-19)]> sh make-indi-files2.sh 
+<[(mapping-19)]> sh idfetch.sh
+<[(mapping-19)]> sh reformat.sh
+
+Now building single sequence CMs and doctoring the E-values:
+<[(mapping-19)]> sh cmbuild.sh
+
+Adding E-values from RF00177.cm:
+<[(mapping-19)]> sh add-evalues.sh
+
+And doing cmsearches:
+<[(mapping-19)]> sh cmsearch.sh 
+
+ rank     E-value  score  bias  sequence                       start    end   mdl trunc   gc  description
+ ----   --------- ------ -----  ----------------------------- ------ ------   --- ----- ----  -----------
+  (1) !         0 1437.4  52.0  gi|940377017|ref|NR_133017.1|      1   1375 + hmm     - 0.67  Thermogladius shockii strain WB1 16S ribosomal R
+  (2) !         0 1220.5  46.9  gi|158323878|gb|EU183120.1|        1   1175 + hmm     - 0.67  Thermogladius shockii strain WB1 16S ribosomal R
+  (3) !   1.1e-61  198.1   1.8  gi|158323878|gb|EU183120.1|     1885   2089 + hmm     - 0.66  Thermogladius shockii strain WB1 16S ribosomal R
+
+  (1) !         0 1406.8  62.2  gi|799111749|ref|NR_040973.3|      1   1358 + hmm     - 0.68  Aeropyrum camini strain SY1 16S ribosomal RNA, p
+  (2) !    4e-273  897.6  45.6  gi|30519866|dbj|AB109559.1|        1    893 + hmm     - 0.69  Aeropyrum camini gene for 16S rRNA, partial sequ
+  (3) !  6.4e-103  334.5   7.4  gi|30519866|dbj|AB109559.1|     1205   1562 + hmm     - 0.68  Aeropyrum camini gene for 16S rRNA, partial sequ
+  (4) !   5.6e-47  149.4   2.8  gi|30519866|dbj|AB109559.1|      939   1099 + hmm     - 0.65  Aeropyrum camini gene for 16S rRNA, partial sequ
+
+  (1) !         0 1583.1  66.0  gi|799076663|ref|NR_121692.2|       1    1521 + hmm     - 0.68  Aeropyrum camini strain SY1 16S ribosomal RNA,
+  (2) !         0 1148.8  51.7  gi|547221229|dbj|AP012489.1|  1166817 1165705 - hmm     - 0.68  Aeropyrum camini SY1 = JCM 12091 DNA, complete
+  (3) !    1e-125  418.9  10.3  gi|547221229|dbj|AP012489.1|  1165592 1165171 - hmm     - 0.67  Aeropyrum camini SY1 = JCM 12091 DNA, complete
+
+  (1) !         0 1555.8  67.1  gi|799050458|ref|NR_102764.2|       1    1497 + hmm     - 0.68  Pyrobaculum aerophilum strain IM2 16S ribosoma
+  (2) !         0 1167.2  46.1  gi|18308975|gb|AE009441.1|    1090725 1091849 + hmm     - 0.67  Pyrobaculum aerophilum str. IM2, complete geno
+  (3) !  3.7e-113  377.6  16.5  gi|18308975|gb|AE009441.1|    1089640 1090027 + hmm     - 0.69  Pyrobaculum aerophilum str. IM2, complete geno
+
+  (1) !         0 1550.4  68.7  gi|799009678|ref|NR_102766.2|       1    1494 + hmm     - 0.68  Pyrobaculum oguniense strain TE7 16S ribosomal
+  (2) !         0 1211.7  56.5  gi|375158415|gb|CP003316.1|   1430990 1432173 + hmm     - 0.68  Pyrobaculum oguniense TE7, complete genome
+  (3) !   8.5e-97  323.6   8.8  gi|375158415|gb|CP003316.1|   1432850 1433180 + hmm     - 0.68  Pyrobaculum oguniense TE7, complete genome
+
+  (1) !         0 1528.1  65.5  gi|798982253|ref|NR_040935.3|      1   1472 + hmm     - 0.68  Pyrobaculum oguniense strain TE7 16S ribosomal R
+  (2) !         0 1212.6  54.9  gi|21693151|dbj|AB087402.1|        1   1174 + hmm     - 0.68  Pyrobaculum oguniense genes for 16S rRNA, homing
+  (3) !   1.2e-89  290.6   8.0  gi|21693151|dbj|AB087402.1|     1869   2168 + hmm     - 0.68  Pyrobaculum oguniense genes for 16S rRNA, homing
+
+  (1) !         0 1768.7  24.5  gi|823545342|ref|NR_102767.2|      1   1640 + hmm     - 0.57  Syntrophothermus lipocalidus strain DSM 12680 16
+  (2) !         0 1690.5  25.0  gi|297144051|gb|CP002048.1|    47189  48763 + hmm     - 0.57  Syntrophothermus lipocalidus DSM 12680, complete
+  (3) !         0 1681.8  25.6  gi|297144051|gb|CP002048.1|   742863 744438 + hmm     - 0.57  Syntrophothermus lipocalidus DSM 12680, complete
+  (4) !   1.2e-18   64.7   0.1  gi|297144051|gb|CP002048.1|   742718 742814 + hmm     - 0.60  Syntrophothermus lipocalidus DSM 12680, complete
+  (5) !   1.2e-18   64.6   0.1  gi|297144051|gb|CP002048.1|    47044  47139 + hmm     - 0.60  Syntrophothermus lipocalidus DSM 12680, complete
+
+  (1) !         0 1551.3  67.6  gi|823533256|ref|NR_102765.2|      1   1494 + hmm     - 0.68  Pyrobaculum neutrophilum strain V24Sta 16S ribos
+  (2) !         0 1212.1  53.4  gi|170933697|gb|CP001014.1|   690421 691607 + hmm     - 0.68  Thermoproteus neutrophilus V24Sta, complete geno
+  (3) !   2.5e-95  318.3   9.1  gi|170933697|gb|CP001014.1|   692287 692611 + hmm     - 0.68  Thermoproteus neutrophilus V24Sta, complete geno
+
+  (1) !         0 1551.7  69.9  gi|823530129|ref|NR_102988.2|       1    1497 + hmm     - 0.68  Aeropyrum pernix strain K1 16S ribosomal RNA, 
+  (2) !  5.5e-270  896.3  44.6  gi|116062158|dbj|BA000002.3|  1220911 1220032 - hmm     - 0.69  Aeropyrum pernix K1 DNA, complete genome
+  (3) !  3.1e-194  645.7  18.3  gi|116062158|dbj|BA000002.3|  1219339 1218716 - hmm     - 0.67  Aeropyrum pernix K1 DNA, complete genome
+  (4) !   0.00014   18.0   1.8  gi|823530129|ref|NR_102988.2|    1453    1378 - hmm     - 0.79  Aeropyrum pernix strain K1 16S ribosomal RNA, 
+
+  (1) !         0 1607.2  58.5  gi|823527099|ref|NR_102972.2|      1   1534 + hmm     - 0.67  Caldivirga maquilingensis strain IC-167 16S ribo
+  (2) !  3.4e-285  946.8  36.2  gi|157919427|gb|CP000852.1|   130825 129911 - hmm     - 0.67  Caldivirga maquilingensis IC-167, complete genom
+  (3) !  3.1e-195  649.1  15.2  gi|157919427|gb|CP000852.1|   129809 129151 - hmm     - 0.66  Caldivirga maquilingensis IC-167, complete genom
+
+  (1) !         0 1552.1  67.1  gi|800924410|ref|NR_102989.2|      1   1494 + hmm     - 0.68  Pyrobaculum arsenaticum strain DSM 13514 16S rib
+  (2) !         0 1163.7  45.8  gi|145282035|gb|CP000660.1|   624446 623327 - hmm     - 0.67  Pyrobaculum arsenaticum DSM 13514, complete geno
+  (3) !  2.4e-113  378.1  17.0  gi|145282035|gb|CP000660.1|   625532 625147 - hmm     - 0.70  Pyrobaculum arsenaticum DSM 13514, complete geno
+
+  (1) !         0 1588.4   5.5  gi|800922526|ref|NR_029182.3|         1   1465 + hmm     - 0.51  Helicobacter bilis strain Hb1 16S ribosomal R
+  (2) !         0 1383.9   3.4  gi|47524191|gb|U18766.2|HBU18766    376   1652 + hmm     - 0.51  Helicobacter bilis 16S ribosomal RNA gene, pa
+  (3) !   3.1e-58  186.3   0.1  gi|47524191|gb|U18766.2|HBU18766      1    266 + hmm     - 0.45  Helicobacter bilis 16S ribosomal RNA gene, pa
+
+  (1) !         0 1618.1  12.7  gi|799517092|ref|NR_044847.4|      1   1496 + hmm     - 0.54  Caedibacter caryophilus strain 221 16S ribosomal
+  (2) !         0 1430.3   9.6  gi|436063|emb|X71837.1|          326   1691 + hmm     - 0.54  C.caryophila 16S rRNA gene A
+  (3) !   4.2e-53  169.2   0.3  gi|436063|emb|X71837.1|            1    179 + hmm     - 0.54  C.caryophila 16S rRNA gene A
+
+  (1) !         0 1482.3  66.9  gi|798982255|ref|NR_112034.2|      1   1433 + hmm     - 0.68  Pyrobaculum neutrophilum strain V24Sta 16S ribos
+  (2) !         0 1191.9  53.0  gi|3687520|dbj|AB009618.1|         1   1169 + hmm     - 0.68  Thermoproteus neutrophilus gene for 16S rRNA, pa
+  (3) !   2.8e-83  269.5   8.9  gi|3687520|dbj|AB009618.1|      1849   2130 + hmm     - 0.69  Thermoproteus neutrophilus gene for 16S rRNA, pa
+
+  (1) !         0 1384.3  47.0  gi|798974488|ref|NR_118373.2|      1   1321 + hmm     - 0.66  Caldivirga maquilingensis strain IC-167 16S ribo
+  (2) !  6.8e-260  853.4  31.0  gi|378405456|gb|JQ346759.1|        1    830 + hmm     - 0.67  Caldivirga maquilingensis culture DSM:13496 16S 
+  (3) !  2.7e-159  520.6   9.5  gi|378405456|gb|JQ346759.1|      926   1461 + hmm     - 0.65  Caldivirga maquilingensis culture DSM:13496 16S 
+
+  (1) !         0 1586.4  58.4  gi|798870958|ref|NR_040790.3|      1   1516 + hmm     - 0.67  Caldivirga maquilingensis strain IC-167 16S ribo
+  (2) !  3.6e-282  927.4  38.9  gi|3868862|dbj|AB013926.1|         1    904 + hmm     - 0.68  Caldivirga maquilingensis gene for 16S rRNA, par
+  (3) !    2e-196  643.7  15.1  gi|3868862|dbj|AB013926.1|      1023   1642 + hmm     - 0.65  Caldivirga maquilingensis gene for 16S rRNA, par
+
+  (1) !         0 1627.3  10.1  gi|785497611|ref|NR_102768.2|      1   1501 + hmm     - 0.53  [Clostridium] cellulolyticum strain H10 16S ribo
+  (2) !         0 1554.6  10.1  gi|785794309|ref|NG_041947.1|    180   1640 + hmm     - 0.52  [Clostridium] cellulolyticum strain H10 16S ribo
+  (3) !   4.1e-18   53.2   0.0  gi|785794309|ref|NG_041947.1|      1     75 + hmm     - 0.56  [Clostridium] cellulolyticum strain H10 16S ribo
+
+  (1) !         0 1499.6  64.5  gi|645321772|ref|NR_118661.1|      1   1451 + hmm     - 0.68  Pyrobaculum islandicum strain GEO3 16S ribosomal
+  (2) !         0 1499.6  64.5  gi|294441|gb|L07511.1|PYBRGDY     24   1474 + hmm     - 0.68  Pyrobaculum islandicum 16S ribosomal RNA gene
+  (3) !     4e-05   10.6   1.3  gi|645321772|ref|NR_118661.1|   1423   1345 - hmm     - 0.76  Pyrobaculum islandicum strain GEO3 16S ribosomal
+  (4) !     4e-05   10.6   1.3  gi|294441|gb|L07511.1|PYBRGDY   1446   1368 - hmm     - 0.76  Pyrobaculum islandicum 16S ribosomal RNA gene
+
+  (1) !         0 1747.3  12.4  gi|134050581|gb|CP000612.1|     10048   11658 + hmm     - 0.54  Desulfotomaculum reducens MI-1, complete genom
+  (2) !         0 1747.3  12.4  gi|507147963|ref|NR_102770.1|       1    1611 + hmm     - 0.54  Desulfotomaculum reducens MI-1 strain MI-1 16S
+  (3) !         0 1742.5  12.4  gi|134050581|gb|CP000612.1|    441378  442988 + hmm     - 0.54  Desulfotomaculum reducens MI-1, complete genom
+  (4) !         0 1740.9  12.4  gi|134050581|gb|CP000612.1|    184639  186249 + hmm     - 0.54  Desulfotomaculum reducens MI-1, complete genom
+  (5) !         0 1740.5  12.2  gi|134050581|gb|CP000612.1|   2752891 2751281 - hmm     - 0.54  Desulfotomaculum reducens MI-1, complete genom
+  (6) !         0 1738.7  12.1  gi|134050581|gb|CP000612.1|   1345371 1346981 + hmm     - 0.54  Desulfotomaculum reducens MI-1, complete genom
+  (7) !         0 1738.5  12.4  gi|134050581|gb|CP000612.1|   1332694 1334304 + hmm     - 0.54  Desulfotomaculum reducens MI-1, complete genom
+  (8) !         0 1738.4  12.4  gi|134050581|gb|CP000612.1|   2225515 2223905 - hmm     - 0.54  Desulfotomaculum reducens MI-1, complete genom
+  (9) !         0 1736.9  12.4  gi|134050581|gb|CP000612.1|   3196630 3195020 - hmm     - 0.54  Desulfotomaculum reducens MI-1, complete genom
+ (10) !  1.3e-127  425.7   2.4  gi|134050581|gb|CP000612.1|    359716  360157 + hmm     - 0.53  Desulfotomaculum reducens MI-1, complete genom
+ (11) !   6.5e-18   62.6   0.1  gi|134050581|gb|CP000612.1|    187224  187429 + hmm     - 0.46  Desulfotomaculum reducens MI-1, complete genom
+ (12) !   8.1e-18   62.3   0.1  gi|134050581|gb|CP000612.1|     12641   12839 + hmm     - 0.45  Desulfotomaculum reducens MI-1, complete genom
+ (13) !   8.1e-18   62.3   0.1  gi|134050581|gb|CP000612.1|    443794  443992 + hmm     - 0.45  Desulfotomaculum reducens MI-1, complete genom
+ (14) !   8.1e-18   62.3   0.1  gi|134050581|gb|CP000612.1|   1335109 1335307 + hmm     - 0.45  Desulfotomaculum reducens MI-1, complete genom
+
+The final 19.map file with introns:
+
+<[(mapping-19)]> pwd
+/panfs/pan1/infernal/notebook/17_0810_typestrain_genome_coords/mapping-19
+<[(mapping-19)]> cat 19.with-introns.map 
+NR_133017|EU183120|1-1170,1885-2089
+NR_040973|AB109559|1-878,939-1095,1237-1562
+NR_121692|AP012489|1166817-1156706,1165603-1165171
+NR_102764|AE009441|1089640-1090015,1090279-1091849
+NR_102766|CP003316|1430990-1432160,1432858-1433180
+NR_040935|AB087402|1-1172,1877-2168
+NR_102767|CP002048|47044-47119,47200-48763
+NR_102765|CP001014|690421-691589,692295-692611
+NR_012988|BA000002|1220911-122035,121938-1218716
+NR_102972|CP000852|130825-129913,129771-129151
+NR_102989|CP000660|625532-625157,624445-623327
+NR_029182|HBU18766|1-188,376-1652
+NR_044847|X71837|1-177,373-1691
+NR_112034|AB009618|1-1151,1857-2130
+NR_118373|JQ346759|1-822,962-1461
+NR_040790|AB013926|1-897,1024-1642
+NR_102768|NG_041947|1-71,211-1640        
+NR_118661|L07511|24-1474
+NR_102770|CP000612|10048-11659
+<[(mapping-19)]> cat 19.no-introns.map 
+NR_133017|EU183120|1-2089
+NR_040973|AB109559|1-1562
+NR_121692|AP012489|1166817-165171
+NR_102764|AE009441|1089640-1091849
+NR_102766|CP003316|1430990-1433180
+NR_040935|AB087402|1-2168
+NR_102767|CP002048|47044-48763
+NR_102765|CP001014|690421-692611
+NR_012988|BA000002|1220911-1218716
+NR_102972|CP000852|130825-129151
+NR_102989|CP000660|625532-623327
+NR_029182|HBU18766|1-1652
+NR_044847|X71837|1-1691
+NR_112034|AB009618|1-2130
+NR_118373|JQ346759|1--1461
+NR_040790|AB013926|1--1642
+NR_102768|NG_041947|1-1640        
+NR_118661|L07511|24-1474
+NR_102770|CP000612|10048-11659
+
+To do next week:
+
+Work on this:
+
+Input:
+1. 16S typestrain sequence file
+2. sequence file of all source sequences in map file
+3. map file
+
+Steps:
+1. run ribotyper on 16S typestrain to classify archaea v bacteria
+for each $i in archaea and bacteria:
+2. fetch $i typeset seqs to $i.type.fa
+3. fetch $i source seqs to $i.source.fa
+4. classify each seq as subseq or fullseq and save this info
+5. run cmsearch using appropriate model
+6. look for overlaps between cmsearch and map
+7. output
+
+Output:
+1. for each sequence in map file:
+
+domain accession source full-or-sub current-coords cmsearch-coords 
+
+Summary stats:
+- for each domain
+  - for each class (full or sub)
+    how many current-coords agree with cmsearch-coords at 5' end, 3' end, both ends? 
+
+Then run an analogous command to this:
+<[(edirect-experimenting)]> cat ../19.gi.acc.ntlist | epost -db nuccore -format acc | efetch -format gpc | xtract -insd INSDSeq_comment > 19.comment.txt
+
+On the full typestrain dataset, and check that all comments agree with
+the map file I"m using. 
+
+<[(17_0810_typestrain_genome_coords)]> cp man.NR.map bkups/17_0811-3/
+<[(17_0810_typestrain_genome_coords)]> grep -v ^\# man.NR.map > new.NR.map
+<[(17_0810_typestrain_genome_coords)]> cat mapping-19/19.no-introns.map >> new.NR.map
+<[(17_0810_typestrain_genome_coords)]> wc -l new.NR.map
+19189 new.NR.map
+
+<[(17_0810_typestrain_genome_coords)]> perl map2typelist.pl man.NR.map > 19189.type.ntlist
+<[(17_0810_typestrain_genome_coords)]> cat run-ribotyper.sh
+#ribotyper.pl 19167.fa rt-19167 > rt-19167.ribotyper.out
+ribotyper.pl 19189.type.fa rt-19189.type > rt-19189.type.ribotyper.out
+
+<[(17_0810_typestrain_genome_coords)]> idfetchacc 19189.type.ntlist > 19189.type.fa; sh run-ribosensor.sh
+
+===================================
+EPN, Mon Aug 14 09:17:08 2017
+
+Okay, picking up where I left off on Friday. 
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+To do next week:
+
+Work on this:
+
+Input:
+1. 16S typestrain sequence file
+2. sequence file of all source sequences in map file
+3. map file
+
+Steps:
+1. run ribotyper on 16S typestrain to classify archaea v bacteria
+for each $i in archaea and bacteria:
+2. fetch $i typeset seqs to $i.type.fa
+3. fetch $i source seqs to $i.source.fa
+4. classify each seq as subseq or fullseq and save this info
+5. run cmsearch using appropriate model
+6. look for overlaps between cmsearch and map
+7. output
+
+Output:
+1. for each sequence in map file:
+
+domain accession source full-or-sub current-coords cmsearch-coords 
+
+Summary stats:
+- for each domain
+  - for each class (full or sub)
+    how many current-coords agree with cmsearch-coords at 5' end, 3' end, both ends? 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+New plan:
+Have cmsearch classify each sequence:
+
+Input:
+1. 16S typestrain sequence file
+2. sequence file of all source sequences in map file
+3. map file
+
+Steps:
+1. classify each seq as subseq or fullseq and save this info
+2. run cmsearch using both RF00177 and RF01959
+3. remove cmsearch overlaps
+4. look for overlaps between cmsearch and map
+5. output
+
+Output:
+1. for each sequence in map file:
+
+domain accession source full-or-sub current-coords cmsearch-coords 
+
+Summary stats:
+- for each domain
+  - for each class (full or sub)
+    how many current-coords agree with cmsearch-coords at 5' end, 3' end, both ends? 
+
+-------------------------
+----------------------
+Okay, I have an in-progress version of the script that lists sequences
+that have coordinates that 
+
+
+TODO:
+
+- look into all source names that do not have a long name:
+HBU18766
+any more?
+
+- put 19 list in pipeline.sh.
+
+- save all length mismatches, and out of bounds warnings to file
+  save those files for records before changing the map file.
+
+- when done, fetch out length with edirect for all out of bounds
+  warnings, and update map file if necessary, 
+
+- add instuctions on that step to pipeline.sh.
+
+- add intron file read to script and allow those to have length
+  mismatches
+
+<[(17_0810_typestrain_genome_coords)]> perl check-map-with-cmsearch.pl man.NR.map 19189.type.fa 19138.source.fa | grep "out of bounds" > outofbounds.22.list
+<[(17_0810_typestrain_genome_coords)]> perl check-map-with-cmsearch.pl man.NR.map 19189.type.fa 19138.source.fa | grep "mismatch" > mismatch.105.list
+<[(17_0810_typestrain_genome_coords)]> cat outofbounds.22.ntlist | epost -db nuccore -format acc | efetch -format gpc | xtract -insd INSDSeq_length > outofbounds.22.length
+
+I was going to update these sequences, but decided against it:
+
+The text I had in pipeline.sh but removed:
+~~~~~~~~~~~~~~~~~~~
+# Use check-map-with-cmsearch.pl to get WARNINGS that show when the lengths are out-of-bounds
+# like this:
+#
+#perl check-map-with-cmsearch.pl man.NR.map 19189.type.fa 19138.source.fa | grep "out of bounds" > outofbounds.22.list
+# 
+# Examples: 
+#head outofbounds.22.list
+#WARNING: NR_025774|AY382898:1-1421| out of bounds AY382898 length 1408
+#WARNING: NR_029146|L11305:2-1458| out of bounds L11305 length 1457
+#WARNING: NR_029336|Y11573:1-1500| out of bounds Y11573 length 1460
+#
+# Many of these are because the coordinates (e.g. 1-1421) are not accurate. 
+# Maybe they refer to a previous version of the sequence?
+# Use edirect to get the current lengths, like this:
+#
+#cat outofbounds.22.list | awk '{ print $2 }' > outofbounds.22.ntlist
+#cat outofbounds.22.ntlist | epost -db nuccore -format acc | efetch -format gpc | xtract -insd INSDSeq_length > outofbounds.22.length
+#
+# Then go through the outofbounds.22.length file and update the 
+# man.NR.map file accordingly:
+#NR_025774.2	1408
+# 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The reason I did not include them is because not all of them are
+fixable, for example:
+
+WARNING: NR_115320|AY772089:1-1449| out of bounds AY772089 length 1442
+
+AY772089 is actually 1449 nucleotides.
+
+-------------------
+Having the script take a file that lists introns:
+
+Cloning github code for removing overlaps:
+<[(17_0810_typestrain_genome_coords)]> git clone https://github.com/nawrockie/cmsearch_tblout_deoverlap.git
+
+============================
+EPN, Tue Aug 15 10:51:50 2017
+
+The main script is working pretty well, but I've just realized I
+should remove all the problematic sequences first.
+
+The script currently dies at this sequence: 
+HEYA! ERROR found two hits that overlap with NR_11856
+
+The one sequence that has two hits.
+
+It's got a ribotyper error:
+<[(17_0810_typestrain_genome_coords)]> grep NR_118562 rt-19189.type/rt-19189.type.ribotyper.long.out 
+15840  gi|645321647|ref|NR_118562.1|   FAIL    1006    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1075.2   552.6  1.07  2.2e-165  0.959  0.489     503     994      7    489   412.7   0.410  SSU_rRNA_chloroplast            657.3  *DuplicateRegion:(51-489)_hits_1_and_2(7.489,51.515);*InconsistentHits:seq_order(2,1[503.994,18.490]),mdl_order(1,2[7.489,51.515]);MultipleHits:(2);
+
+I think I'll go through ribotyper and look at all of the failures and
+make sure that they are really bad and then I'll remove those from the
+map file so that I don't worry about them in my script's output.
+
+<[(17_0810_typestrain_genome_coords)]> cat rt-19189.type.ribotyper.out 
+#
+# Unexpected feature statistics:
+#
+#                     causes     number  fraction
+# unexpected feature  failure?  of seqs   of seqs
+# ------------------  --------  -------  --------
+  CLEAN               no          18893   0.98463
+  *NoHits             yes             5   0.00026
+  *DuplicateRegion    yes            33   0.00172
+  *InconsistentHits   yes             9   0.00047
+  LowCoverage         no             27   0.00141
+  LowScoreDifference  no              1   0.00005
+  MultipleHits        no            275   0.01433
+#
+#
+I'll first look at the failures:
+
+  *NoHits             yes             5   0.00026
+  *DuplicateRegion    yes            33   0.00172
+  *InconsistentHits   yes             9   0.00047
+
+Fetching out just these  sequences so that I can run --slow on them:
+
+<[(ribotyper-failures)]> pwd
+/panfs/pan1/infernal/notebook/17_0810_typestrain_genome_coords/ribotyper-failures
+<[(ribotyper-failures)]> cat ../rt-19189.type/rt-19189.type.ribotyper.long.out | grep -v ^\# | grep "FAIL" | awk '{ print $2 }' > 43.ntlist
+<[(ribotyper-failures)]> esl-sfetch -f ../19189.type.fa 43.ntlist > 43.fa
+<[(ribotyper-failures)]> sh run-ribotyper.sh &
+
+(Actually there were only 40 hits, not 43)
+
+The 5 no hits guys:
+23    gi|636558888|ref|NR_114945.1|   FAIL    1495    0  -    -                  -                              -        -       -       -     -         -      -      -       -       -      -      -       -       -  -                                   -  *NoHits;
+24    gi|636558889|ref|NR_114946.1|   FAIL    1455    0  -    -                  -                              -        -       -       -     -         -      -      -       -       -      -      -       -       -  -                                   -  *NoHits;
+25    gi|636558890|ref|NR_114947.1|   FAIL    1493    0  -    -                  -                              -        -       -       -     -         -      -      -       -       -      -      -       -       -  -                                   -  *NoHits;
+26    gi|636558891|ref|NR_114948.1|   FAIL    1500    0  -    -                  -                              -        -       -       -     -         -      -      -       -       -      -      -       -       -  -                                   -  *NoHits;
+27    gi|636558892|ref|NR_114949.1|   FAIL    1476    0  -    -                  -                              -        -       -       -     -         -      -      -       -       -      -      -       -       -  -                                   -  *NoHits;
+
+<[(ribotyper-failures)]> grep 11494 43.fa
+>gi|636558888|ref|NR_114945.1| Fusobacterium mortiferum strain ATCC 25557 16S ribosomal RNA gene, complete sequence
+>gi|636558889|ref|NR_114946.1| Fusobacterium necrogenes strain ATCC 25556 16S ribosomal RNA gene, complete sequence
+>gi|636558890|ref|NR_114947.1| Fusobacterium varium strain ATCC 8501 16S ribosomal RNA gene, complete sequence
+>gi|636558891|ref|NR_114948.1| Bilophila wadsworthia strain 7959 16S ribosomal RNA gene, complete sequence
+>gi|636558892|ref|NR_114949.1| Bacteroides vulgatus strain ATCC 8482 16S ribosomal RNA gene, complete sequence
+
+Whats the phylogeny of these guys?
+(3) Bacteria; Fusobacteria; Fusobacteriales; Fusobacteriaceae;  Fusobacterium.
+Bacteria; Proteobacteria; Deltaproteobacteria; Desulfovibrionales; Desulfovibrionaceae; Bilophila.
+Bacteria; Bacteroidetes; Bacteroidia; Bacteroidales; Bacteroidaceae; Bacteroides.
+
+Aligning them:
+<[(ribotyper-failures)]> cmalign -o 5.stk -g ../RF00177.cm 5.fa > 5.cmalign &
+#                                                                                               running time (s)                 
+#                                                                                        -------------------------------          
+# idx  seq name                       length  cm from    cm to  trunc    bit sc  avg pp  band calc  alignment      total  mem (Mb)
+# ---  -----------------------------  ------  -------  -------  -----  --------  ------  ---------  ---------  ---------  --------
+    1  gi|636558888|ref|NR_114945.1|    1495       21     1509  5'&3'   -338.45   0.553       0.34       7.50       7.84    255.35
+    2  gi|636558889|ref|NR_114946.1|    1455       33     1454  5'&3'   -314.69   0.607       0.34       9.38       9.72    316.56
+    3  gi|636558890|ref|NR_114947.1|    1493       16     1492  5'&3'   -335.24   0.602       0.33       8.07       8.40    277.13
+    4  gi|636558891|ref|NR_114948.1|    1500        9     1358     3'   -328.84   0.606       2.82      31.04      33.86   1004.48
+    5  gi|636558892|ref|NR_114949.1|    1476        3     1468     3'   -302.61   0.623       3.23      26.88      30.11    871.68
+#
+# CPU time: 88.60u 2.14s 00:01:30.74 Elapsed: 00:00:34.66
+
+<[(ribotyper-failures)]> cat 5-blastn.sh 
+blastn -query 5.fa -db nr -task blastn > 5.blastn
+<[(ribotyper-failures)]> sh 5-blastn.sh &
+[1] 82877
+
+The top hits are all of these set of sequences (they all derive from
+AJ8670** sequnces), and then theere is a large drop off:
+
+~~~~~~~~~~~~~~~
+Query= gi|636558888|ref|NR_114945.1| Fusobacterium mortiferum strain ATCC
+25557 16S ribosomal RNA gene, complete sequence
+
+Length=1495
+                                                                      Score     E
+Sequences producing significant alignments:                          (Bits)  Value
+
+NR_114945.1  Fusobacterium mortiferum strain ATCC 25557 16S ribos...  2693    0.0   
+AJ867033.1  Fusobacterium mortiferum 16S rRNA gene, strain ATCC 9817  2587    0.0   
+NR_114946.1  Fusobacterium necrogenes strain ATCC 25556 16S ribos...  2504    0.0   
+AJ867040.1  Fusobacterium sp. RMA 1065 16S rRNA gene, strain RMA ...  2459    0.0   
+AJ867041.1  Fusobacterium sp. RMA 2453 16S rRNA gene, strain RMA ...  2415    0.0   
+NR_114947.1  Fusobacterium varium strain ATCC 8501 16S ribosomal ...  2408    0.0   
+AJ867035.1  Fusobacterium varium 16S rRNA gene, strain ATCC 27725     2367    0.0   
+AJ867037.1  Fusobacterium ulcerans 16S rRNA gene, strain ATCC 12111   2360    0.0   
+AJ867038.1  Fusobacterium necrophorum 16S rRNA gene, strain ATCC ...  2188    0.0   
+MF164159.1  Uncultured Enterococcus sp. clone HF1 and HF2 16S rib...  1191    0.0   
+LC133075.1  Bacillus pumilus gene for 16S ribosomal RNA, partial ...  1099    0.0   
+GQ495063.1  Bacillus sp. M_38 16S ribosomal RNA gene, partial seq...  1099    0.0   
+GQ495060.1  Bacillus sp. M_35 16S ribosomal RNA gene, partial seq...  1095    0.0   
+~~~~~~~~~~~~~~~~~~
+I've pulled out 37 of the top sequences after the drop off, and I'm
+going to run ribotyper on them:
+
+<[(ribotyper-failures)]> idfetchacc weirdo-nearest-neighbors.ntlist > weirdo-nearest-neighbors.fa
+Had to manually remove 5 sequences:
+
+<[(ribotyper-failures)]> ribotyper.pl -f weirdo-nearest-neighbors.fa rt-weirdo-nearest-neighbors > rt-weirdo-nearest-neighbors.ribotyper.out
+#                     causes     number  fraction
+# unexpected feature  failure?  of seqs   of seqs
+# ------------------  --------  -------  --------
+  CLEAN               no              0   0.00000
+  *NoHits             yes            32   1.00000
+
+Holy shit.
+
+What are these? 
+
+They aren't found with --hmmonly either.
+
+<[(ribotyper-failures)]> cmalign -o weirdo-nearest-neighbors.stk ../RF00177.cm weirdo-nearest-neighbors.fa > weirdo-nearest-neighbors.cmalign &
+
+TODO: write a script that parses the blast output from 5.blastn, and
+pulls out all sequences, and names them based on their blast score,
+then run ribotyper and cmsearch --hmmonly on all of them, see what the
+highest scroing one is that is recognized as a bacteria.
+
+-----------------------
+And the 35 failures that were not no hits:
+<[(ribotyper-failures)]> grep -v ^\# rt-43/rt-43.ribotyper.long.out | grep -v NoHits | awk '{ print $2 }' > 35.ntlist
+<[(ribotyper-failures)]> esl-sfetch -f 43.fa 35.ntlist > 35fail.fa
+<[(ribotyper-failures)]> sh run-ribotyper.sh &
+
+
+<[(ribotyper-failures)]> grep -v ^\# rt-35fail/rt-35fail.ribotyper.long.out > man.35fail.long.out
+1     gi|933790278|ref|NG_042880.1|   FAIL    1676    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1636.3  1517.3  0.98         0  0.809  0.701     502    1676    189   1382   497.3   0.297  SSU_rRNA_chloroplast           1136.2  *DuplicateRegion:(189-207)_hits_1_and_2(30.207,189.1382);LowCoverage:(0.809<0.860);MultipleHits:(2);
+2     gi|933790350|ref|NG_042881.1|   FAIL    1833    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1821.1  1643.1  0.99         0  0.826  0.710     532    1833    189   1515   547.0   0.298  SSU_rRNA_chloroplast           1271.2  *DuplicateRegion:(189-207)_hits_1_and_2(2.207,189.1515);LowCoverage:(0.826<0.860);MultipleHits:(2);
+3     gi|933790447|ref|NG_042883.1|   FAIL    1614    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1808.4  1662.7  1.12         0  0.919  0.800     323    1614    197   1515   582.8   0.361  SSU_rRNA_chloroplast           1222.7  *DuplicateRegion:(197-220)_hits_1_and_2(24.220,197.1515);MultipleHits:(2);
+4     gi|602259355|ref|NR_029239.2|   FAIL    1527    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  2071.9  2015.3  1.36         0  1.000  0.967       1    1477     33   1529   687.3   0.450  SSU_rRNA_chloroplast           1387.6  *DuplicateRegion:(1480-1529)_hits_1_and_2(33.1529,1480.1529);MultipleHits:(2);
+5     gi|265678982|ref|NR_029290.1|   FAIL    1500    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1932.6  1885.9  1.29         0  1.000  0.967       1    1450     41   1503   637.0   0.425  SSU_rRNA_chloroplast           1300.2  *DuplicateRegion:(1454-1503)_hits_1_and_2(41.1503,1454.1503);MultipleHits:(2);
+6     gi|343200802|ref|NR_041489.1|   FAIL    1465    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1729.3  1318.0  1.18         0  0.999  0.728     399    1465    415   1495   714.4   0.488  SSU_rRNA_chloroplast           1012.9  *DuplicateRegion:(415-439)_hits_1_and_2(49.439,415.1495);MultipleHits:(2);
+7     gi|343201502|ref|NR_042228.1|   FAIL    1506    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1653.7  1582.5  1.10         0  0.991  0.950       1    1431     54   1469   541.7   0.360  SSU_rRNA_chloroplast           1118.9  *DuplicateRegion:(1023-1084)_hits_1_and_2(54.1469,1023.1084);MultipleHits:(2);
+8     gi|343201522|ref|NR_042248.1|   FAIL    1500    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1863.7  1097.3  1.24         0  1.000  0.610       1     915     37    930   535.0   0.357  SSU_rRNA_chloroplast           1330.9  *DuplicateRegion:(894-930)_hits_1_and_2(37.930,894.1476);MultipleHits:(2);
+9     gi|343202371|ref|NR_042657.1|   FAIL    1442    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     3  1578.7  1554.5  1.09         0  0.891  0.862      22    1264     52   1301   559.2   0.388  SSU_rRNA_chloroplast           1048.6  *DuplicateRegion:(1482-1502)_hits_2_and_3(1482.1502,1482.1502);MultipleHits:(3);
+10    gi|343202458|ref|NR_042754.1|   FAIL    1470    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1915.2  1854.0  1.30         0  0.997  0.951       2    1399      8   1379   500.1   0.340  SSU_rRNA_chloroplast           1419.1  *DuplicateRegion:(1311-1379)_hits_1_and_2(8.1379,1311.1379);MultipleHits:(2);
+11    gi|343202766|ref|NR_043208.1|   FAIL    1533    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1898.2  1859.9  1.24         0  0.995  0.963      53    1528     22   1504   583.6   0.381  SSU_rRNA_chloroplast           1321.6  *DuplicateRegion:(638-686)_hits_1_and_2(22.1504,638.686);*InconsistentHits:seq_order(2,1[53.1528,2.50]),mdl_order(1,2[22.1504,638.686]);MultipleHits:(2);
+12    gi|343202813|ref|NR_043291.1|   FAIL    1571    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1907.9  1895.2  1.21         0  0.962  0.947      83    1570      5   1447   520.1   0.331  SSU_rRNA_chloroplast           1390.4  *DuplicateRegion:(5-28)_hits_1_and_2(5.28,5.1447);*InconsistentHits:seq_order(1,2[47.70,83.1570]),mdl_order(2,1[5.28,5.1447]);MultipleHits:(2);
+13    gi|343198876|ref|NR_043937.1|   FAIL    1497    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1616.3  1603.2  1.08         0  0.975  0.957       1    1432     36   1447   584.7   0.391  SSU_rRNA_chloroplast           1034.0  *InconsistentHits:seq_order(2,1[1437.1464,1.1432]),mdl_order(1,2[4.31,36.1447]);MultipleHits:(2);
+14    gi|343199125|ref|NR_044619.1|   FAIL    1740    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     4  1928.7  1277.3  1.11         0  0.883  0.584       1    1017     12   1020   540.7   0.311  SSU_rRNA_chloroplast           1380.8  *DuplicateRegion:(1008-1020)_hits_1_and_2(12.1020,1008.1120);MultipleHits:(4);
+15    gi|343199126|ref|NR_044620.1|   FAIL    1740    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     4  1929.1  1289.4  1.11         0  0.881  0.584       1    1017     12   1020   513.4   0.295  SSU_rRNA_chloroplast           1408.4  *DuplicateRegion:(1008-1020)_hits_1_and_2(12.1020,1008.1120);MultipleHits:(4);
+16    gi|343206265|ref|NR_044857.1|   FAIL    1517    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1925.7  1220.7  1.27         0  0.996  0.615     584    1516    578   1507   649.1   0.428  SSU_rRNA_chloroplast           1276.2  *DuplicateRegion:(578-615)_hits_1_and_2(28.615,578.1507);MultipleHits:(2);
+17    gi|566084944|ref|NR_108488.1|   FAIL    1515    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1700.1  1687.7  1.12         0  0.999  0.984       1    1491      8   1502   726.5   0.480  SSU_rRNA_chloroplast            980.1  *DuplicateRegion:(8-28)_hits_1_and_2(6.28,8.1502);*InconsistentHits:seq_order(2,1[1493.1515,1.1491]),mdl_order(1,2[6.28,8.1502]);MultipleHits:(2);
+18    gi|631251343|ref|NR_112540.1|   FAIL    1457    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1906.1   954.7  1.31  2.9e-289  0.998  0.514       3     751     30    823   595.9   0.409  SSU_rRNA_chloroplast           1310.9  *DuplicateRegion:(757-823)_hits_1_and_2(30.823,757.1460);MultipleHits:(2);
+19    gi|631251612|ref|NR_112810.1|   FAIL    1566    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  2003.7  1939.4  1.28         0  0.987  0.936       1    1466     11   1449   648.0   0.414  SSU_rRNA_chloroplast           1358.2  *DuplicateRegion:(1423-1449)_hits_1_and_2(11.1449,1423.1501);MultipleHits:(2);
+20    gi|636558664|ref|NR_114721.1|   FAIL    1446    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     4  1663.1  1392.4  1.15         0  0.950  0.774       1    1119     28   1148   567.9   0.393  SSU_rRNA_chloroplast           1128.1  *DuplicateRegion:(1026-1104)_hits_1_and_2(28.1148,1026.1104);MultipleHits:(4);
+21    gi|636558784|ref|NR_114841.1|   FAIL    1500    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1883.6  1853.0  1.26         0  0.998  0.967       1    1450     34   1491   645.9   0.431  SSU_rRNA_chloroplast           1243.5  *DuplicateRegion:(1445-1491)_hits_1_and_2(34.1491,1445.1491);MultipleHits:(2);
+22    gi|636558840|ref|NR_114897.1|   FAIL    1455    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     3  1779.5   903.5  1.22  7.7e-274  0.995  0.544     533    1324     46    831   583.4   0.401  SSU_rRNA_chloroplast           1195.9  *InconsistentHits:seq_order(2,1,3[533.1324,3.531,1330.1455]),mdl_order(1,2,3[46.831,840.1368,1368.1493]);MultipleHits:(3);
+23    gi|636558913|ref|NR_114970.1|   FAIL    1450    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1901.8  1845.3  1.31         0  1.000  0.966       1    1400     13   1383   545.5   0.376  SSU_rRNA_chloroplast           1361.3  *DuplicateRegion:(1334-1383)_hits_1_and_2(13.1383,1334.1383);MultipleHits:(2);
+24    gi|636560827|ref|NR_116887.1|   FAIL    1550    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1846.3  1786.3  1.19         0  0.999  0.968       1    1500     14   1530   674.8   0.435  SSU_rRNA_chloroplast           1171.6  *DuplicateRegion:(1482-1530)_hits_1_and_2(14.1530,1482.1530);MultipleHits:(2);
+25    gi|645319793|ref|NR_117157.1|   FAIL    1600    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  2132.8  2075.3  1.33         0  0.998  0.968       1    1548      8   1533   571.5   0.357  SSU_rRNA_chloroplast           1568.6  *DuplicateRegion:(1486-1533)_hits_1_and_2(8.1533,1486.1533);MultipleHits:(2);
+26    gi|645319823|ref|NR_117181.1|   FAIL    1435    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1632.7  1524.0  1.14         0  1.000  0.916     122    1435    121   1447   637.3   0.444  SSU_rRNA_chloroplast            993.3  *DuplicateRegion:(121-137)_hits_1_and_2(16.137,121.1447);MultipleHits:(2);
+27    gi|645320358|ref|NR_117581.1|   FAIL    1642    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1953.4  1844.4  1.19         0  0.952  0.888       1    1458     12   1446   422.7   0.257  SSU_rRNA_chloroplast           1534.2  *DuplicateRegion:(1432-1446)_hits_1_and_2(12.1446,1432.1533);MultipleHits:(2);
+28    gi|645321647|ref|NR_118562.1|   FAIL    1006    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1075.2   552.6  1.07  4.2e-168  0.959  0.489     503     994      7    489   412.7   0.410  SSU_rRNA_chloroplast            657.3  *DuplicateRegion:(51-489)_hits_1_and_2(7.489,51.515);*InconsistentHits:seq_order(2,1[503.994,18.490]),mdl_order(1,2[7.489,51.515]);MultipleHits:(2);
+29    gi|645322196|ref|NR_119001.1|   FAIL    1740    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     4  1929.1  1289.4  1.11         0  0.881  0.584       1    1017     12   1020   513.4   0.295  SSU_rRNA_chloroplast           1408.4  *DuplicateRegion:(1008-1020)_hits_1_and_2(12.1020,1008.1120);MultipleHits:(4);
+30    gi|645322400|ref|NR_119158.1|   FAIL    1500    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1910.1  1868.3  1.27         0  1.000  0.967       1    1450     41   1503   641.3   0.428  SSU_rRNA_chloroplast           1273.5  *DuplicateRegion:(1454-1503)_hits_1_and_2(41.1503,1454.1503);MultipleHits:(2);
+31    gi|645322402|ref|NR_119159.1|   FAIL    1500    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1931.2  1884.5  1.29         0  1.000  0.967       1    1450     41   1503   633.3   0.422  SSU_rRNA_chloroplast           1302.5  *DuplicateRegion:(1454-1503)_hits_1_and_2(41.1503,1454.1503);MultipleHits:(2);
+32    gi|672238922|ref|NR_125511.1|   FAIL    1442    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     5  1322.3   541.3  0.92  1.1e-164  0.901  0.295    1015    1439   1078   1501   435.7   0.302  SSU_rRNA_chloroplast            874.0  *DuplicateRegion:(61-330)_hits_1_and_2(54.330,61.342),(89-330)_hits_1_and_3(54.330,89.393),(89-342)_hits_2_and_3(61.342,89.393);*InconsistentHits:seq_order(2,4,1,3,5[441.688,28.280,721.1014,343.421,1015.1439]),mdl_order(1,2,3,4,5[54.330,61.342,89.393,405.501,1078.1501]);MultipleHits:(5);
+33    gi|1116030237|ref|NR_144695.1|  FAIL    1512    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1894.4  1883.6  1.25         0  0.995  0.981      28    1511      7   1505   643.2   0.425  SSU_rRNA_chloroplast           1257.4  *DuplicateRegion:(1482-1502)_hits_1_and_2(7.1505,1482.1502);*InconsistentHits:seq_order(2,1[28.1511,6.26]),mdl_order(1,2[7.1505,1482.1502]);MultipleHits:(2);
+34    gi|1146059212|ref|NR_145944.1|  FAIL    1560    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1967.2  1956.4  1.26         0  0.963  0.949      73    1552      8   1531   539.9   0.346  SSU_rRNA_chloroplast           1434.3  *DuplicateRegion:(1510-1531)_hits_1_and_2(8.1531,1510.1531);*InconsistentHits:seq_order(2,1[73.1552,47.68]),mdl_order(1,2[8.1531,1510.1531]);MultipleHits:(2);
+35    gi|1179766744|ref|NR_146694.1|  FAIL    1595    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     2  1743.1  1587.5  1.09         0  0.888  0.766     370    1590    197   1438   555.3   0.348  SSU_rRNA_chloroplast           1184.4  *DuplicateRegion:(197-208)_hits_1_and_2(20.208,197.1438);MultipleHits:(2);
+<[(ribotyper-failures)]> grep -v ^\# rt-35fail/rt-35fail.ribotyper.long.out > man.35fail.long.out
+
+
+<[(ribotyper-failures)]> cat man.35fail.list.txt
+# DR: DuplicateRegion
+# IH: InconsistentHits
+#
+# DR CASE 1: PASS overlap is low (< 30 nt) and region on sequence is separated by gap --> INTRON
+# DR CASE 2: FAIL duplicated region out of order
+# DR CASE 3: FAIL N nucleotides duplicated in order
+#
+# IH CASE 1: FAIL sequence region misordered, belongs somewhere else
+#
+# 8 PASS, introns
+gi|933790278|ref|NG_042880.1| PASS (DR CASE 1 INTRON)
+gi|933790350|ref|NG_042881.1| PASS (DR CASE 1 INTRON)
+gi|933790447|ref|NG_042883.1| PASS (DR CASE 1 INTRON) 
+gi|645320358|ref|NR_117581.1| PASS (DR CASE 1, INTRON) 
+gi|343199125|ref|NR_044619.1| PASS (DR CASE 1 INTRON (actually 2)) 
+gi|343199126|ref|NR_044620.1| PASS (DR CASE 1 INTRON (actually 2)) 
+gi|645322196|ref|NR_119001.1| PASS (DR CASE 1, INTRON (actually 2)) 
+gi|1179766744|ref|NR_146694.1| PASS (DR CASE 1, INTRON)
+
+# 27 fail (7 DR CASE 2, 18 DR CASE 3, 2 IH CASE 1)
+gi|1116030237|ref|NR_144695.1| FAIL (DR CASE 2, positions 6-26 are duplicate of ~final ~21 nt) 
+gi|1146059212|ref|NR_145944.1| FAIL (DR CASE 2, positions 47-68 are duplicate of final 21 nt) 
+gi|343202766|ref|NR_043208.1| FAIL (DR CASE 2, positions 2-50 are duplicate of ~638..687) 
+gi|343202813|ref|NR_043291.1| FAIL (DR CASE 2, positions 47-70 are duplicate of positions 83-106) 
+gi|343201502|ref|NR_042228.1| FAIL (DR CASE 2, final 60 nt duplicate of ~1030-1090) 
+gi|566084944|ref|NR_108488.1| FAIL (DR CASE 2, positions 1493-1515 are dulicate of positions 1-24) 
+gi|672238922|ref|NR_125511.1| FAIL (DR CASE 2 or 3, many problems including ~480-700 are duplicated) 
+
+gi|602259355|ref|NR_029239.2| FAIL (DR CASE 3 ~50nt at 3' end duplicated) 
+gi|265678982|ref|NR_029290.1| FAIL (DR CASE 3 50nt at 3' end duplicated) 
+gi|343200802|ref|NR_041489.1| FAIL (DR CASE 3 ~25 nt at position 375 duplicated) 
+gi|343201522|ref|NR_042248.1| FAIL (DR CASE 3, positions 894..930 duplicated in order) 
+gi|343202371|ref|NR_042657.1| FAIL (DR CASE 3, many problems, including 1326..1346 and 1366..1386 are duplicates) 
+gi|343202458|ref|NR_042754.1| FAIL (DR CASE 3, final 70nt (1311-1379) duplicated in order) 
+gi|343206265|ref|NR_044857.1| FAIL (DR CASE 3, positions 542..580 are duplicated in order) 
+gi|631251343|ref|NR_112540.1| FAIL (DR CASE 3, positions 685-751 are duplicated in order) 
+gi|631251612|ref|NR_112810.1| FAIL (DR CASE 3, positions ~1430..1466 are duplicated in order) 
+gi|636558664|ref|NR_114721.1| FAIL (DR CASE 2, positions 1123..1201 are duplicate of 998-1074) 
+gi|636558784|ref|NR_114841.1| FAIL (DR CASE 3, positions 1454-1500 are duplicate of 1400-1445) 
+gi|636558913|ref|NR_114970.1| FAIL (DR CASE 3, final 50 positions are duplicated) 
+gi|636560827|ref|NR_116887.1| FAIL (DR CASE 3, final 50 positions are duplicateD) 
+gi|645319793|ref|NR_117157.1| FAIL (DR CASE 3, final 50 positions are duplicated)
+gi|645319823|ref|NR_117181.1| FAIL (DR CASE 3, positions 105-121 are duplicated in order) 
+gi|645321647|ref|NR_118562.1| FAIL (DR CASE 3, positions ~60-490 are duplicated in order) 
+gi|645322400|ref|NR_119158.1| FAIL (DR CASE 3, final 50 positions are duplicated) 
+gi|645322402|ref|NR_119159.1| FAIL (DR CASE 3, final 50 positions are duplicated) 
+
+gi|343198876|ref|NR_043937.1| FAIL (IH CASE 1, positions 1437-1464 should occur before position 1)
+gi|636558840|ref|NR_114897.1| FAIL (IH CASE 1, positions 3..531 should be after positions 533..1324) 
+
+------------------------
+And the low coverage:
+<[(ribotyper-failures)]> cat ../rt-19189.type/rt-19189.type.ribotyper.long.out | grep -v ^\# | grep "LowCoverage" | awk '{ print $2 }' > 27lowcov.ntlist
+<[(ribotyper-failures)]> esl-sfetch -f ../19189.type.fa 27lowcov.ntlist > 27lowcov.fa
+
+Only one fails with --2slow:
+26    gi|672238895|ref|NR_125483.1|  PASS     558    1  SSU  Bacteria           SSU_rRNA_cyanobacteria         plus     1   425.3   425.3  0.76  1.2e-128  0.853  0.853       1     476    140    828    81.5   0.146  SSU_rRNA_chloroplast            354.7  LowCoverage:(0.853<0.860);
+100 nt at 3' end look dodgy
+
+And this guy looks bad in the alignment:
+
+>> gi|636560766|ref|NR_116826.1|  Cellulosibacter alkalithermophilus strain A6 16S ribosomal RNA gene, partial sequence
+Intron at 5'end?
+
+All others are fine:
+-----------------
+And the single low score difference:
+<[(ribotyper-failures)]> grep -v ^# ../rt-19189.type/rt-19189.type.ribotyper.long.out | grep LowScore
+16780  gi|672238912|ref|NR_125501.1|   PASS     367    1  SSU  Bacteria           SSU_rRNA_cyanobacteria         plus     1   543.9   543.9  1.48  5.7e-163  1.000  1.000       1     367    199    565    30.8   0.084  SSU_rRNA_chloroplast            514.8  LowScoreDifference:(0.084<0.100_bits_per_posn);
+
+Looking into that one:
+<[(ribotyper-failures)]> grep NR_125501 ../man.NR.map
+NR_125501|AY157926:1-367|
+
+<[(ribotyper-failures)]> perl /panfs/pan1/infernal/notebook/17_0720_ribo_vs_gpipe/fastafile2blastn.pl NR_125501.fa > blastn.sh
+MODIFIED blastn to search NR and removed most errors
+
+<[(ribotyper-failures)]> sh blastn.sh > NR_125501.blastn & 
+
+Looks like it is probably a cyanobacteria. I'll leave it in.
+---------------------------
+
+=====================================
+EPN, Wed Aug 16 12:15:43 2017
+
+Looking further into the 5 NoHits sequences:
+
+By running ribotyper on all of the sequences that have blast hits to
+any of them.
+
+<[(ribotyper-failures)]> pwd
+/panfs/pan1/infernal/notebook/17_0810_typestrain_genome_coords/ribotyper-failures
+
+Running with the weirdo ribotyper models:
+<[(ribotyper-failures)]> cat 5-blastn.sh
+blastn -outfmt 6 -query 5.fa -db nr -task blastn > 5.outfmt6.blastn
+<[(ribotyper-failures)]> sh 5-blastn.sh
+<[(ribotyper-failures)]> cat 5.outfmt6.blastn | awk '{ print $2 }' | sort | uniq > 539.ntlist
+539
+<[(ribotyper-failures)]> cat 5.outfmt6.blastn | awk '{ print $2 }' | sort | uniq > 539.ntlist
+<[(ribotyper-failures)]> idfetchacc 539.ntlist > 539.fa
+
+Now renaming them so they have the blast score in the name:
+<[(ribotyper-failures)]> perl rename-based-on-blast.pl 539.fa > 539.renamed.fa
+<[(ribotyper-failures)]> esl-seqstat -a 539.renamed.fa  |head
+= AB045905.2|NR_114949.1|id:74.833|nmis:1200|ngap:261|sc:749     1372 Planktothrix agardhii C1-17 gene for 16S ribosomal RNA, partial sequence
+= AB362470.1|NR_114949.1|id:74.922|nmis:319|ngap:74|sc:197      413 Uncultured bacterium gene for 16S rRNA, partial sequence, clone: ROWSB01
+
+--------------
+
+<[(ribotyper-failures)]> cat run-ribotyper.sh
+ribotyper.pl -f -i ~/ribotyper-extra-models/tmp.15.modelinfo --keep 5.fa rt-5-extra > rt-5-extra.ribotyper.out
+<[(ribotyper-failures)]> sh run-ribotyper.sh
+<[(ribotyper-failures)]> 
+# Unexpected feature statistics:
+#
+#                     causes     number  fraction
+# unexpected feature  failure?  of seqs   of seqs
+# ------------------  --------  -------  --------
+  CLEAN               no              0   0.00000
+  *NoHits             yes             5   1.00000
+
+So no hits there.
+
+
+----------------------
+Running ribotyper on the 539 sequences that have blastn hits to one of
+these 5 sequences in NR:
+
+<[(ribotyper-failures)]> pwd
+/panfs/pan1/infernal/notebook/17_0810_typestrain_genome_coords/ribotyper-failures
+
+<[(ribotyper-failures)]> cat run-ribotyper.sh
+ribotyper.pl -f -n 4 539.renamed.fa rt-539 > rt-539.ribotyper.out 
+ribotyper.pl -f -i ~/ribotyper-extra-models/tmp.15.modelinfo -n 4 539.renamed.fa rt-extra-539 > rt-extra-539.ribotyper.out 
+
+Now looking at the results:
+<[(ribotyper-failures)]> cat rt-539.ribotyper.out 
+# Summary statistics:
+#
+#                   number  fraction  average   average   fraction     number
+# class            of seqs  of total   length  coverage  that PASS  that FAIL
+# ---------------  -------  --------  -------  --------  ---------  ---------
+  *input*              539    1.0000  91121.39    1.0000          -          -
+#
+  LSU.Archaea            1    0.0019  2688317.00    0.0010     0.0000          1
+  LSU.Bacteria           2    0.0037  3852824.00    0.0035     0.0000          2
+  LSU.Eukarya            1    0.0019  27485737.00    0.0000     0.0000          1
+  SSU.Archaea            2    0.0037  1504.00    0.6265     1.0000          0
+  SSU.Bacteria          42    0.0779  1157.71    0.5810     1.0000          0
+  SSU.Chloroplast        2    0.0037  1229.00    0.7200     1.0000          0
+  SSU.Eukarya            1    0.0019  3439.00    0.5610     1.0000          0
+#
+  *all*                539    1.0000  91121.39    0.0513     0.0872        492
+  *none*               488    0.9054  22904.09    0.0000     0.0000        488
+#
+# Unexpected feature statistics:
+#
+#                         causes     number  fraction
+# unexpected feature      failure?  of seqs   of seqs
+# ----------------------  --------  -------  --------
+  CLEAN                   no              4   0.00742
+  *NoHits                 yes           488   0.90538
+  *MultipleFamilies       yes             4   0.00742
+  *BothStrands            yes             2   0.00371
+  *DuplicateRegion        yes             2   0.00371
+  *InconsistentHits       yes             2   0.00371
+  MinusStrand             no              1   0.00186
+  LowScore                no             20   0.03711
+  LowCoverage             no             46   0.08534
+  LowScoreDifference      no              4   0.00742
+  VeryLowScoreDifference  no              1   0.00186
+  MultipleHits            no             14   0.02597
+
+And there were no changes when run with the 'extra models;.
+
+So there's only 4 'clean' sequences. Looking at those:
+
+
+162   AF173974.1|NR_114948.1|id:88.095|nmis:42|ngap:3|sc:46.4      PASS      1502    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     1  1833.4  1833.4  1.22         0  0.973  0.973         1      1462      8   1467   599.0   0.399  SSU_rRNA_chloroplast           1236.2  -
+169   AF241653.1|NR_114949.1|id:92.105|nmis:38|ngap:3|sc:55.4      PASS      1502    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     1  1789.2  1789.2  1.19         0  0.975  0.975         1      1464      8   1469   636.9   0.424  SSU_rRNA_chloroplast           1152.6  -
+485   KU307451.1|NR_114946.1|id:96.429|nmis:28|ngap:1|sc:46.4      PASS       587    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     1   737.5   737.5  1.26  7.5e-221  0.952  0.952         2       560    820   1384   181.8   0.310  SSU_rRNA_chloroplast            556.0  -
+486   KU307453.1|NR_114947.1|id:88.889|nmis:45|ngap:5|sc:59.0      PASS       586    1  SSU  Bacteria           SSU_rRNA_bacteria              plus     1   703.1   703.1  1.20  1.7e-210  0.904  0.904         1       530    850   1384   171.1   0.292  SSU_rRNA_chloroplast            532.9  -
+
+Looking at these 4 sequecnes:
+<[(ribotyper-failures)]> grep AF173974 539.fa 
+>gi|9622554|gb|AF173974.1| Uncultured proteobacterium OCS44 16S ribosomal RNA ribosomal RNA gene, partial sequence
+<[(ribotyper-failures)]> grep AF241653 539.fa 
+>gi|8575489|gb|AF241653.1| Uncultured gamma proteobacterium KTc1121 16S ribosomal RNA gene, partial sequence
+<[(ribotyper-failures)]> grep KU307451 539.fa 
+>gi|969820156|gb|KU307451.1| Burkholderia sp. M3 16S ribosomal RNA gene, partial sequence
+<[(ribotyper-failures)]> grep KU307453 539.fa 
+>gi|969820158|gb|KU307453.1| Burkholderia sp. M5(2015) 16S ribosomal RNA gene, partial sequence
+
+
+Adn the 5 NoHits in the typestrain dataset:
+<[(ribotyper-failures)]> grep ^\> 5.fa
+>gi|636558888|ref|NR_114945.1| Fusobacterium mortiferum strain ATCC 25557 16S ribosomal RNA gene, complete sequence
+>gi|636558889|ref|NR_114946.1| Fusobacterium necrogenes strain ATCC 25556 16S ribosomal RNA gene, complete sequence
+>gi|636558890|ref|NR_114947.1| Fusobacterium varium strain ATCC 8501 16S ribosomal RNA gene, complete sequence
+>gi|636558891|ref|NR_114948.1| Bilophila wadsworthia strain 7959 16S ribosomal RNA gene, complete sequence
+>gi|636558892|ref|NR_114949.1| Bacteroides vulgatus strain ATCC 8482 16S ribosomal RNA gene, complete sequence
+
+None are particularly close... 
+
+Final thing I'll do is draw the secondary structure diagram of these
+sequences as they align to RF00177:
+
+<[(ribotyper-failures)]> sh draw.sh 
+# 6 page postscript saved to file RF00177.ps.
+# 10 page postscript saved to file 5.ps.
+
+<[(ribotyper-failures)]> ps2pdf RF00177.ps
+<[(ribotyper-failures)]> ps2pdf 5.ps
+<[(ribotyper-failures)]> esl-alimerge RF00177.stk 5.stk > RF00177-plus-5.stk
+
+Removed PP annotation for the 5 sequences.
+
+<[(ribotyper-failures)]> sh draw.sh
+# 104 page postscript saved to file RF00177-plus-5.ps.
+
+
+Taking a random sample of 10 other sequences from the 16S type strain
+dataset to compare to:
+<[(ribotyper-failures)]> cat ../19189.type.fa.seqstat | grep ^\= | awk '{ print $2 }' | esl-selectn 10 -
+<[(ribotyper-failures)]> esl-sfetch -f ../19189.type.fa 10r.ntlist > 10r.fa
+
+<[(ribotyper-failures)]> cmalign -o 10r.stk ../RF00177.cm 10r.fa > 10r.cmalign
+<[(ribotyper-failures)]> esl-alimerge RF00177-plus-5.stk 10r.stk > RF00177-plus-5-plus-10r.stk
+<[(ribotyper-failures)]> esl-reformat pfam RF00177-plus-5-plus-10r.stk > tmp.stk
+<[(ribotyper-failures)]> mv tmp.stk RF00177-plus-5-plus-10r.stk
+
+<[(ribotyper-failures)]> sh draw.sh
+# 114 page postscript saved to file RF00177-plus-5-plus-10r.ps.
+<[(ribotyper-failures)]> ps2pdf RF00177-plus-5-plus-10r.ps > RF00177-plus-5-plus-10r.pdf
+
+This file shows the info content for the RF00177 seed, followed by the
+5 bad sequences, followed by 10 random sequences from the type strain
+dataset.
+<[(ribotyper-failures)]> ls -ltr 5bad-10random.pdf 
+-rw-r--r-- 1 nawrocke oblast 861606 Aug 16 14:12 5bad-10random.pdf
+
+It is informative to look at the number of positions for which each
+sequence has a nucleotide not equal to the most common one and the
+most common nt occurs in >= 75% of sequences.
+
+                                    #nt != x, x >= 75% conserved
+5 bad sequences
+= gi|636558888|ref|NR_114945.1|     473
+= gi|636558889|ref|NR_114946.1|     439
+= gi|636558890|ref|NR_114947.1|     485
+= gi|636558891|ref|NR_114948.1|     424
+= gi|636558892|ref|NR_114949.1|     562
+
+10 random bacterial sequences
+from 16S type strain dataset
+= gi|961555197|ref|NR_134166.1|      25
+= gi|645320473|ref|NR_117671.1|      20
+= gi|219857423|ref|NR_025011.1|      12
+= gi|631250847|ref|NR_112043.1|      30
+= gi|343200489|ref|NR_041176.1|      19
+= gi|636558433|ref|NR_114489.1|      22
+= gi|631252210|ref|NR_113408.1|      18
+= gi|636558773|ref|NR_114830.1|      18
+= gi|559795193|ref|NR_104782.1|      38
+= gi|636558539|ref|NR_114596.1|      22
+
+I put notes here:
+<[(ribotyper-failures)]> pwd
+/panfs/pan1/infernal/notebook/17_0810_typestrain_genome_coords/ribotyper-failures
+<[(ribotyper-failures)]> cat man.5nohit.notes.txt
+
+---------------------------------------
+Okay, now removing the problematic sequences from my map file:
+
+The file toremove.list has notes on why each sequence was removed (it
+was all based on ribotyper results):
+
+~~~~~~~~~~~~~~~~~~~~
+<[(ribotyper-failures)]> cat toremove.list
+# RIBOTYPER v0.07 results: 
+# ribotyper.pl 19189.type.fa rt-19189.type > rt-19189.type.ribotyper.out
+# Unexpected feature statistics:
+#
+#                     causes     number  fraction
+# unexpected feature  failure?  of seqs   of seqs
+# ------------------  --------  -------  --------
+#  CLEAN               no          18893   0.98463
+#  *NoHits             yes             5   0.00026
+#  *DuplicateRegion    yes            33   0.00172
+#  *InconsistentHits   yes             9   0.00047
+#  LowCoverage         no             27   0.00141
+#  LowScoreDifference  no              1   0.00005
+#  MultipleHits        no            275   0.01433
+#
+# I looked into all of the sequences with >= 1 unexpected features
+# EXCEPT for those with only 'MultipleHits'.
+#
+#################################################################
+# 5 NoHits
+gi|636558888|ref|NR_114945.1|
+gi|636558889|ref|NR_114946.1|
+gi|636558890|ref|NR_114947.1|
+gi|636558891|ref|NR_114948.1|
+gi|636558892|ref|NR_114949.1|
+# More notes on these in 5nohit.notes.txt
+#
+##########################################################
+# 27 (out of 35) that gave DuplicateRegions or InconsistentHits
+# unexpected feature in ribotyper. I manually inspected all of these,
+# the other 8 are all okay (probably gave unexpected feature due to 
+# introns). 
+# Notation below:
+# DR: DuplicateRegion
+# IH: InconsistentHits
+#
+# DR CASE 1: PASS overlap is low (< 30 nt) and region on sequence is separated by gap --> INTRON
+# DR CASE 2: FAIL duplicated region out of order
+# DR CASE 3: FAIL N nucleotides duplicated in order
+#
+# IH CASE 1: FAIL sequence region misordered, belongs somewhere else
+#
+# 27 fail (7 DR CASE 2, 18 DR CASE 3, 2 IH CASE 1)
+gi|1116030237|ref|NR_144695.1| FAIL (DR CASE 2, positions 6-26 are duplicate of ~final ~21 nt) 
+gi|1146059212|ref|NR_145944.1| FAIL (DR CASE 2, positions 47-68 are duplicate of final 21 nt) 
+gi|343202766|ref|NR_043208.1| FAIL (DR CASE 2, positions 2-50 are duplicate of ~638..687) 
+gi|343202813|ref|NR_043291.1| FAIL (DR CASE 2, positions 47-70 are duplicate of positions 83-106) 
+gi|343201502|ref|NR_042228.1| FAIL (DR CASE 2, final 60 nt duplicate of ~1030-1090) 
+gi|566084944|ref|NR_108488.1| FAIL (DR CASE 2, positions 1493-1515 are dulicate of positions 1-24) 
+gi|672238922|ref|NR_125511.1| FAIL (DR CASE 2 or 3, many problems including ~480-700 are duplicated) 
+gi|602259355|ref|NR_029239.2| FAIL (DR CASE 3 ~50nt at 3' end duplicated) 
+gi|265678982|ref|NR_029290.1| FAIL (DR CASE 3 50nt at 3' end duplicated) 
+gi|343200802|ref|NR_041489.1| FAIL (DR CASE 3 ~25 nt at position 375 duplicated) 
+gi|343201522|ref|NR_042248.1| FAIL (DR CASE 3, positions 894..930 duplicated in order) 
+gi|343202371|ref|NR_042657.1| FAIL (DR CASE 3, many problems, including 1326..1346 and 1366..1386 are duplicates) 
+gi|343202458|ref|NR_042754.1| FAIL (DR CASE 3, final 70nt (1311-1379) duplicated in order) 
+gi|343206265|ref|NR_044857.1| FAIL (DR CASE 3, positions 542..580 are duplicated in order) 
+gi|631251343|ref|NR_112540.1| FAIL (DR CASE 3, positions 685-751 are duplicated in order) 
+gi|631251612|ref|NR_112810.1| FAIL (DR CASE 3, positions ~1430..1466 are duplicated in order) 
+gi|636558664|ref|NR_114721.1| FAIL (DR CASE 2, positions 1123..1201 are duplicate of 998-1074) 
+gi|636558784|ref|NR_114841.1| FAIL (DR CASE 3, positions 1454-1500 are duplicate of 1400-1445) 
+gi|636558913|ref|NR_114970.1| FAIL (DR CASE 3, final 50 positions are duplicated) 
+gi|636560827|ref|NR_116887.1| FAIL (DR CASE 3, final 50 positions are duplicateD) 
+gi|645319793|ref|NR_117157.1| FAIL (DR CASE 3, final 50 positions are duplicated)
+gi|645319823|ref|NR_117181.1| FAIL (DR CASE 3, positions 105-121 are duplicated in order) 
+gi|645321647|ref|NR_118562.1| FAIL (DR CASE 3, positions ~60-490 are duplicated in order) 
+gi|645322400|ref|NR_119158.1| FAIL (DR CASE 3, final 50 positions are duplicated) 
+gi|645322402|ref|NR_119159.1| FAIL (DR CASE 3, final 50 positions are duplicated) 
+gi|343198876|ref|NR_043937.1| FAIL (IH CASE 1, positions 1437-1464 should occur before position 1)
+gi|636558840|ref|NR_114897.1| FAIL (IH CASE 1, positions 3..531 should be after positions 533..1324) 
+#############################################################
+# Of the 27 LowCoverage, 25 are fine, and only 2 are bad
+# (after manual inspection)
+gi|672238895|ref|NR_125483.1| 100 nts at 3' end look nonhomologous
+gi|636560766|ref|NR_116826.1| 5' end looks nonhomologous
+#############################################################
+# The 1 LowScoreDifference sequence is fine, it's a cyanobacteria and
+# is short, and just happens to have a close score to the chloroplast
+# model
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+<[(ribotyper-failures)]> cat toremove.list | grep -v ^\# | awk '{ print $1 }' | wc -l
+gi|636558888|ref|NR_114945.1|
+gi|636558889|ref|NR_114946.1|
+gi|636558890|ref|NR_114947.1|
+gi|636558891|ref|NR_114948.1|
+gi|636558892|ref|NR_114949.1|
+gi|1116030237|ref|NR_144695.1|
+gi|1146059212|ref|NR_145944.1|
+gi|343202766|ref|NR_043208.1|
+gi|343202813|ref|NR_043291.1|
+gi|343201502|ref|NR_042228.1|
+gi|566084944|ref|NR_108488.1|
+gi|672238922|ref|NR_125511.1|
+gi|602259355|ref|NR_029239.2|
+gi|265678982|ref|NR_029290.1|
+gi|343200802|ref|NR_041489.1|
+gi|343201522|ref|NR_042248.1|
+gi|343202371|ref|NR_042657.1|
+gi|343202458|ref|NR_042754.1|
+gi|343206265|ref|NR_044857.1|
+gi|631251343|ref|NR_112540.1|
+gi|631251612|ref|NR_112810.1|
+gi|636558664|ref|NR_114721.1|
+gi|636558784|ref|NR_114841.1|
+gi|636558913|ref|NR_114970.1|
+gi|636560827|ref|NR_116887.1|
+gi|645319793|ref|NR_117157.1|
+gi|645319823|ref|NR_117181.1|
+gi|645321647|ref|NR_118562.1|
+gi|645322400|ref|NR_119158.1|
+gi|645322402|ref|NR_119159.1|
+gi|343198876|ref|NR_043937.1|
+gi|636558840|ref|NR_114897.1|
+gi|672238895|ref|NR_125483.1|
+gi|636560766|ref|NR_116826.1|
+<[(ribotyper-failures)]> cat toremove.list | grep -v ^\# | awk '{ print $1 }' | wc -l
+34
+
+<[(17_0810_typestrain_genome_coords)]> perl remove-from-map.pl ribotyper-failures/toremove.list man.NR.map > 19154.NR.map
+
+Now remaking the fasta files:
+<[(17_0810_typestrain_genome_coords)]> perl map2acc.pl 19154.NR.map | sort | uniq | wc -l
+19104
+<[(17_0810_typestrain_genome_coords)]> perl map2acc.pl 19154.NR.map | sort | uniq > 19104.source.ntlist
+<[(17_0810_typestrain_genome_coords)]> perl map2typelist.pl 19154.NR.map | wc -l
+19154
+<[(17_0810_typestrain_genome_coords)]> perl map2typelist.pl 19154.NR.map > 19154.type.ntlist
+
+<[(17_0810_typestrain_genome_coords)]> idfetchacc 19154.type.ntlist > 19154.type.fa
+<[(17_0810_typestrain_genome_coords)]> idfetchacc 19104.source.ntlist > 19104.source.fa
+
+<[(17_0810_typestrain_genome_coords)]> sh qsub-cmsearch.sh
+Your job 7563321 ("cmsearch4") has been submitted
+
+================================
+EPN, Thu Aug 17 06:10:21 2017
+
+De-overlapping:
+<[(17_0810_typestrain_genome_coords)]> perl cmsearch-deoverlap.pl 20170817.tblout > 20170817.deoverlap.out
+
+<[(17_0810_typestrain_genome_coords)]> cat run-check.sh
+#perl check-map-with-cmsearch.pl 19154.NR.map 19189.type.fa 19138.source.fa accessions-with-introns.list 2.cm 20170815 > cur.out
+perl check-map-with-cmsearch.pl 19154.NR.map 19154.type.fa 19104.source.fa introns.list 2.cm 20170817 > 20170817.out
+<[(17_0810_typestrain_genome_coords)]> sh run-check.sh
+
+Backing up:
+<[(17_0810_typestrain_genome_coords)]> mkdir bkups/17_0817-1
+<[(17_0810_typestrain_genome_coords)]> cp check-map-with-cmsearch.pl bkups/17_0817-1/
+<[(17_0810_typestrain_genome_coords)]> cp run-check.sh bkups/17_0817-1/
+<[(17_0810_typestrain_genome_coords)]> cp 20170817.tblout bkups/17_0817-1/
+<[(17_0810_typestrain_genome_coords)]> cp 19154.NR.map bkups/17_0817-1/
+<[(17_0810_typestrain_genome_coords)]> cp 19154.type.fa bkups/17_0817-1/
+<[(17_0810_typestrain_genome_coords)]> cp 19154.type.fa.seqstat bkups/17_0817-1/
+<[(17_0810_typestrain_genome_coords)]> cp 19104.source.fa bkups/17_0817-1/
+<[(17_0810_typestrain_genome_coords)]> cp 19104.source.fa.seqstat  bkups/17_0817-1/
+
+TODO next:
+- make errors column:
+- length error 1A: add column that shows if actual type sequence length != map type
+  sequence length, no known intron
+- length error 1B: add column that shows if actual type sequence length != map type
+  sequence length, known intron
+- length error 2: add column that shows if type sequence length exceeds source
+  sequence length
+- length error 3: add column that shows if map start or map stop
+  exceeds source sequence length
+- length error 4: 5' boundary mismatch (current vs predicted)
+- length error 5: 3' boundary mismatch (current vs predicted)
+- id error 1A: IDENTICAL but extracted predicted sequence not equal to
+  type sequence, no known intron
+- id error 1B: IDENTICAL but extracted predicted sequence not equal to
+  type sequence, known intron
+
+- output each type of error to its own file
+
+- save list to its own file
+- output summary statistics to standard out
+
+-----------------
+Splitting up the map file into 2 files, full and sub:
+
+<[(17_0810_typestrain_genome_coords)]> perl map2full-subset.pl 19154.NR.map > 18091.full.NR.map
+18091
+<[(17_0810_typestrain_genome_coords)]> perl map2sub-subset.pl 19154.NR.map | wc -l
+1063
+<[(17_0810_typestrain_genome_coords)]> perl map2sub-subset.pl 19154.NR.map > sub.1063.NR.map
+<[(17_0810_typestrain_genome_coords)]> perl map2full-subset.pl 19154.NR.map > full.18091.NR.map
+
+<[(17_0810_typestrain_genome_coords)]> perl map2acc.pl sub.1063.NR.map | sort | uniq | wc -l
+1024
+<[(17_0810_typestrain_genome_coords)]> perl map2acc.pl sub.1063.NR.map | sort | uniq > sub.1024.ntlist
+<[(17_0810_typestrain_genome_coords)]> perl map2acc.pl full.18091.NR.map | sort | uniq | wc -l
+18081
+<[(17_0810_typestrain_genome_coords)]> perl map2acc.pl full.18091.NR.map | sort | uniq > full.18081.ntlist
+
+And fetching the sequences:
+<[(17_0810_typestrain_genome_coords)]> perl map2source.pl full.18091.NR.map | sort | uniq | wc -l
+18081
+<[(17_0810_typestrain_genome_coords)]> perl map2source.pl full.18091.NR.map | sort | uniq > full.18081.source.ntlist
+<[(17_0810_typestrain_genome_coords)]> perl map2typelist.pl full.18091.NR.map | sort | uniq | wc -l
+18091
+<[(17_0810_typestrain_genome_coords)]> perl map2typelist.pl full.18091.NR.map | sort | uniq > full.18091.type.ntlist
+<[(17_0810_typestrain_genome_coords)]> perl map2source.pl sub.1063.NR.map | sort | uniq | wc -l
+1024
+<[(17_0810_typestrain_genome_coords)]> perl map2source.pl sub.1063.NR.map | sort | uniq > sub.1024.source.ntlist
+<[(17_0810_typestrain_genome_coords)]> perl map2typelist.pl sub.1063.NR.map | sort | uniq | wc -l
+1063
+<[(17_0810_typestrain_genome_coords)]> perl map2typelist.pl sub.1063.NR.map | sort | uniq > sub.1063.type.ntlist
+<[(17_0810_typestrain_genome_coords)]> idfetchacc sub.1063.type.ntlist > sub.1063.type.fa
+<[(17_0810_typestrain_genome_coords)]> idfetchacc sub.1024.source.ntlist > sub.1024.source.fa 
+<[(17_0810_typestrain_genome_coords)]> idfetchacc full.18081.source.ntlist > full.18081.source.fa
+
+
+And making the subset cmsearch tblout file, from the larger one,
+without actually running cmsearch:
+
+<[(17_0810_typestrain_genome_coords)]> cat full.18081.source.fa.seqstat | grep ^\= | awk '{ print $2 }' > full.18081.list
+<[(17_0810_typestrain_genome_coords)]> cat sub.1024.source.fa.seqstat | grep ^\= | awk '{ print $2 }' > source.1024.list
+<[(17_0810_typestrain_genome_coords)]> perl prune-tblout.pl full.18081.list 20170817.tblout.deoverlapped > full.20170817.tblout.deoverlapped
+<[(17_0810_typestrain_genome_coords)]> perl prune-tblout.pl sub.1024.list 20170817.tblout.deoverlapped > sub.20170817.tblout.deoverlapped
+ERROR unable to open list file sub.1024.list at prune-tblout.pl line 6.
+<[(17_0810_typestrain_genome_coords)]> mv source.1024.list sub.1024.list
+<[(17_0810_typestrain_genome_coords)]> perl prune-tblout.pl sub.1024.list 20170817.tblout.deoverlapped > sub.20170817.tblout.deoverlapped
+<[(17_0810_typestrain_genome_coords)]> wc -l sub.20170817.tblout.deoverlapped 
+2695 sub.20170817.tblout.deoverlapped
+<[(17_0810_typestrain_genome_coords)]> wc -l full.20170817.tblout.deoverlapped 
+18081 full.20170817.tblout.deoverlapped
+
+----------------
+TODO: figure out what sequence gets no Infenral prediction if any in
+sub set.
+
+Idea: pull out prediction and align to CM and check model boundaries.
+
+OR, select all sequences that start at position > 100, as low hanging
+fruit, and fetch them all out and run cmalign on them, do they all
+align 1..M?
+
+
+<[(17_0810_typestrain_genome_coords)]> sh run-check.sh
+WARNING found two hits that overlap with NR_125548
+WARNING found two hits that overlap with NG_046384
+WARNING found two hits that overlap with NG_046384
+Saved tabular output to sub.20170817.tbl
+
+Summary statistics:
+
+category                       count  fraction
+--------------------          ------  ------
+Input                           1063  1.0000
+Predicted                       1062  0.9991
+NoInfernalPrediction               1  0.0009
+CLEAN                             50  0.0470
+PredictionDisagrees              984  0.9257
+MapLengthDiffersActual            20  0.0188
+MapStrandDiffersPredicted        282  0.2653
+
+Saved tabular output to full.20170817.tbl
+
+Summary statistics:
+
+category                       count  fraction
+--------------------          ------  ------
+Input                          18091  1.0000
+Predicted                      18091  1.0000
+NoInfernalPrediction               0  0.0000
+CLEAN                          16632  0.9194
+PredictionDisagrees             1421  0.0785
+MapLengthDiffersActual           190  0.0105
+MapStrandDiffersPredicted         27  0.0015
+
+========================
+EPN, Fri Aug 18 06:04:58 2017
+
+cmsearch runs from yesterday are now finished:
+
+<[(17_0810_typestrain_genome_coords)]> cp *20170817.tblout.deoverlapped bkups/17_0818-1/
+<[(17_0810_typestrain_genome_coords)]> cp *pl bkups/17_0818-1/
+<[(17_0810_typestrain_genome_coords)]> cp full.18081.cpu8.source.tblout full.20170817.tblout
+<[(17_0810_typestrain_genome_coords)]> cp sub.1024.cpu8.source.tblout sub.20170817.tblout
+<[(17_0810_typestrain_genome_coords)]> perl cmsearch-deoverlap.pl full.20170817.tblout
+Saved 18081 hits (18081 removed) to full.20170817.tblout.deoverlapped
+<[(17_0810_typestrain_genome_coords)]> perl cmsearch-deoverlap.pl sub.20170817.tblout
+Saved  2681 hits ( 2684 removed) to sub.20170817.tblout.deoverlapped
+
+Output did not change:
+
+<[(17_0810_typestrain_genome_coords)]> sh run-check.sh
+WARNING found two hits that overlap with NR_125548
+WARNING found two hits that overlap with NG_046384
+WARNING found two hits that overlap with NG_046384
+Saved tabular output to sub.20170817.tbl
+
+Summary statistics:
+
+category                       count  fraction
+--------------------          ------  ------
+Input                           1063  1.0000
+Predicted                       1062  0.9991
+NoInfernalPrediction               1  0.0009
+CLEAN                             50  0.0470
+PredictionDisagrees              984  0.9257
+MapLengthDiffersActual            20  0.0188
+MapStrandDiffersPredicted        282  0.2653
+
+Saved tabular output to full.20170817.tbl
+
+Summary statistics:
+
+category                       count  fraction
+--------------------          ------  ------
+Input                          18091  1.0000
+Predicted                      18091  1.0000
+NoInfernalPrediction               0  0.0000
+CLEAN                          16632  0.9194
+PredictionDisagrees             1421  0.0785
+MapLengthDiffersActual           190  0.0105
+MapStrandDiffersPredicted         27  0.0015
+
+-----------------------------
+This is the sequence with no infernal prediction:
+<[(17_0810_typestrain_genome_coords)]> grep -v ^\# sub.20170817.tbl | sort -rk 7 | nl
+     1	1000   ?         NR_121793   CP007044     sub    +   ?     1290113    1291655            -          -             -          -      no  NoInfernalPrediction;
+
+CP007044 was updated to CP007044.2 (presumably) on 10/28/15, and
+NR_121793 was created? 2/2/15. Also, the names don't match up:
+NR_121793 is Serratia fonticola RB-25, and CP007044.2 is Chania
+multitudinisentens RB-25. Maybe the name of the species changed?
+
+Some other random questions I'm curious about:
+- how many sequences in each set are negative strand in the map file?
+
+<[(17_0810_typestrain_genome_coords)]> grep -v ^\# sub.20170817.tbl | sort -rk 6 | nl
+#                type                    full         current-coords       predicted-coords        coord-difference                                                     
+#      pred      strain      source        or  cur prd  ---------------------   ---------------------    ---------------------   known                    
+#idx   domain    accn        accn         sub  str str       start       stop        start       stop         start       stop  intron  unexpected_features
+#----  -------   ----------  ----------  ----  --- ---  ---------- ----------   ---------- ----------    ---------- ----------  ------  ------------------
+     1	1055   archaea   NR_121692   AP012489     sub    -   -     1166817     165171      1166817    1165168             0    -999997     yes  PredictionDisagrees(map:1166817-165171!=prediction:1166817-1165168)MapLengthDiffersActual(actual:1522!=map:1001647);
+     2	1061   archaea   NR_102989   CP000660     sub    -   -      625532     623327       625534     623323            -2          4     yes  PredictionDisagrees(map:625532-623327!=prediction:625534-623323)MapLengthDiffersActual(actual:1495!=map:2206);
+     3	1060   archaea   NR_102972   CP000852     sub    -   -      130825     129151       130828     129150            -3          1     yes  PredictionDisagrees(map:130825-129151!=prediction:130828-129150)MapLengthDiffersActual(actual:1535!=map:1675);
+     4	1000   ?         NR_121793   CP007044     sub    +   ?     1290113    1291655            -          -             -          -      no  NoInfernalPrediction;
+     5	1007   bacteria  NR_122053   CP007155     sub    +   -     7246905    7248409      7248416    7246900            -7          5      no  PredictionDisagrees(map:7248409-7246905!=prediction:7248416-7246900)MapStrandDiffersPredicted(predicted:-!=map:+);
+     6	438    bacteria  NR_074457   CP001700     sub    +   -     6297778    6299284      6299291    6297773            -7          5      no  PredictionDisagrees(map:6299284-6297778!=prediction:62992
+
+So for sub, only 3 of these are negative strand in the map file.  And
+from above, there's 282 others that should be negative strand in the
+map file but are not.
+
+And for full:
+<[(17_0810_typestrain_genome_coords)]> grep -v ^\# full.20170817.tbl | sort -rk 6 | nl
+<[(17_0810_typestrain_genome_coords)]> 
+     1	4802   bacteria  NR_042469   AM176541    full    +   -           1       1520         1520          2             0         -1      no  PredictionDisagrees(map:1520-1!=prediction:1520-2)MapStrandDiffersPredicted(predicted:-!=map:+);
+     2	17445  bacteria  NR_144728   LN866997    full    +   -           1       1514         1514          1             0          0      no  MapStrandDiffersPredicted(predicted:-!=map:+);
+     3	17440  bacteria  NR_144723   LN833866    full    +   -           1       1511         1511          1             0          0      no  MapStrandDiffersPredicted(predicted:-!=map:+);
+
+0 are negative strand (as you would expect actually since all these
+start at 1 due to definition of full). But 27 should be
+(MapStrandDiffersPredicted ufeature)
+
+Are there any sequences that 'end' at 1?
+<[(17_0810_typestrain_genome_coords)]> grep -v ^\# sub.20170817.tbl | sort -nk 9 | nl | head
+     1	137    bacteria  NR_029322   Y08105       sub    +   +           9       1315            1       1315             8          0      no  PredictionDisagrees(map:9-1315!=prediction:1-1315)
+     2	31     bacteria  NR_027553   AJ292759     sub    +   +          23       1316            1       1334            22        -18      no  PredictionDisagrees(map:23-1316!=prediction:1-1334)
+<[(17_0810_typestrain_genome_coords)]> grep -v ^\# full.20170817.tbl | sort -nk 9 | nl | head
+     1	15744  bacteria  NR_125522   EU266131    full    +   +           1        302            1        302             0          0      no  -
+     2	15727  bacteria  NR_125501   AY157926    full    +   +           1        367            1        367             0          0      no  -
+     3	15729  bacteria  NR_125504   AY883042    full    +   +           1        459            1        459             0          0      no  -
+
+No.
+
+Investigating manually the sub set, looking at how many sequences
+start within the first 100 nucleotides of the sequence:
+<[(17_0810_typestrain_genome_coords)]> grep -v ^\# sub.20170817.tbl | sort -nk 8 | nl 
+...snip...
+   225	61     bacteria  NR_028908   AJ250959     sub    +   +          90       1476            1       1476            89          0      no  PredictionDisagrees(map:90-1476!=prediction:1-1476)
+   226	159    bacteria  NR_037061   M94728       sub    +   +         137       1658          136       1658             1          0      no  PredictionDisagrees(map:137-1658!=prediction:136-1658)
+...snip...
+   234	1023   bacteria  NR_125502   AY728038     sub    +   +         165       1657          158       1657             7          0      no  PredictionDisagrees(map:165-1657!=prediction:158-1657)
+   235	42     archaea   NR_028242   X51423       sub    +   +         206       1677          206       1676             0          1      no  PredictionDisagrees(map:206-1677!=prediction:206-1676)
+...snip...
+   240	1024   bacteria  NR_125510   DQ288691     sub    +   +         279       1709            1       1709           278          0      no  PredictionDisagrees(map:279-1709!=prediction:1-1709)
+   241	194    archaea   NR_043409   D26489       sub    +   +         301       1792          301       1793             0         -1      no  PredictionDisagrees(map:301-1792!=prediction:301-1793)
+...snip...
+   245	44     archaea   NR_028609   AB022438     sub    +   +         385       1879          385       1880             0         -1      no  PredictionDisagrees(map:385-1879!=prediction:385-1880)
+   246	99     bacteria  NR_029215   X53853       sub    +   +         508       1973          508       1974             0         -1      no  PredictionDisagrees(map:508-1973!=prediction:508-1974)
+
+
+Another thing that would be useful to know is where these sequences
+align to in the model, when I do a cmalign.
+
+Modifying the script to do that.
+
+Also, for sequecnes *without* the MapLengthDiffersActual error, I
+should fetch the map sequence (from source) and the actual sequence
+(from type) and check for identity.
+
+
+Okay, hopefully final run and backup:
+
+<[(17_0810_typestrain_genome_coords)]> sh run-check.sh
+WARNING found two hits that overlap with NR_125548
+WARNING found two hits that overlap with NG_046384
+WARNING found two hits that overlap with NG_046384
+
+# Saved tabular output to sub.20170817.check.tbl
+
+# Summary statistics:
+
+category                       count  fraction
+--------------------          ------  ------
+Input                           1063  1.0000
+Predicted                          0  0.0000
+NoInfernalPrediction               1  0.0009
+CLEAN                             49  0.0461
+PredictionDisagreesWithMap       984  0.9257
+MapLengthDiffersFromActual        10  0.0094
+MapSequenceDiffersActual           5  0.0047
+MapCoordsOutOfBounds               1  0.0009
+MapStrandDiffersPredicted        282  0.2653
+#
+PredictionCompleteModelSpan      788  0.7413
+
+# Saved tabular output to full.20170817.check.tbl
+
+# Summary statistics:
+
+category                       count  fraction
+--------------------          ------  ------
+Input                          18091  1.0000
+Predicted                          0  0.0000
+NoInfernalPrediction               0  0.0000
+CLEAN                          16630  0.9192
+PredictionDisagreesWithMap      1421  0.0785
+MapLengthDiffersFromActual        95  0.0053
+MapSequenceDiffersActual          47  0.0026
+MapCoordsOutOfBounds              21  0.0012
+MapStrandDiffersPredicted         27  0.0015
+#
+PredictionCompleteModelSpan      312  0.0172
+
+
+
+
+-------------------------
+Summary:
+
+This post explains analysis I did of the 16S-typestrain dataset with
+the main goal of identifying what I've termed 'changeable'
+sequences. These are sequences that I recommend be updated by changing
+the coordinates in the source sequences they derive from, thus making
+them 'full-length' with respect to the Rfam 16S models.
+These sequences are listed in two files:
+
+sub.20170817.check.changeable.list.txt
+full.20170817.check.changeable.list.txt
+
+And the full tabular files for these sequences with additional
+information are 
+
+sub.20170817.check.changeable.tbl
+full.20170817.check.changeable.tbl
+
+An explanation of the format of these .tbl files can be found below
+under 'Tabular File Format'.
+
+And the alignments are here:
+
+sub.arc.20170818.check.changeable.stk
+sub.bac.20170818.check.changeable.stk
+full.arc.20170818.check.changeable.stk
+full.bac.20170818.check.changeable.stk
+
+I did more than just detect these changeable sequences. I detected
+some other unexpected features of these sequences, as explained below.
+
+What I think is most useful for Rich is:
+
+A) the 'changeable' sequences in the files listed above. I suggest
+   looking at the alignment files to make sure the sequences look good
+   before making any changes. I've done this and noticed a few with Ns
+   towards the ends, which could explain why the predicted coordinates
+   are different from the current coordinates in GenBank.
+
+B) the list of 34 sequences that I think should be removed from the
+   16S-typestrain dataset altogether listed in the file    
+   34.remove.list.txt (notes in 34.remove.notes.txt)
+
+C) the single NoInfernalPrediction sequence (explained below) is
+   NR_121793 which has the source sequence of CP007044). I believe
+   that the map coordinates 1290113-1291655 of CP007044 correspond to
+   an earlier version of this sequence (CP007044.1) and not the
+   current version (CP007044.2). No cmsearch hits in CP007044.2
+   overlap with the coordinates from the map file. The GenBank entry
+   still has a COMMENT that says that the sequence derives from comes
+   from CP007044:1290113-1291655, even though this is not correct with
+   the current version.
+
+--------------------------
+Details on what I did:
+
+Rich sent me a file called NR.map on 07/18/17 with 19,189 sequences.
+This file gives one line per sequence indicating for each
+16S-typestrain sequence the 'source' sequence from which it
+derives. For example:
+
+NR_044336|EF645688:1-1472|
+NR_074166|CP000830:373482-374943|
+
+NR_044336 and NR_074166 are 16S-typestrain sequences that derive from 
+EF645688 from positions 1-1472, and CP0000830 positions 373482-374943,
+respectively. Below I call the 16S-typestrain sequences 'type'
+sequences and the sequences they derive from 'source' sequences. 
+
+I determined one of the type sequences to no longer be in GenBank
+(NR_012988). Rich said it probably failed QC. I removed it, this left
+19,188.
+
+After updating the map file to correct about 20 lines that were
+incorrectly formatted (see details below under "Updating Map File"), I
+then found 34 sequences that I think are 'bad' based on ribotyper
+output followed up by manual inspection. These are listed in the file
+34.remove.list.txt and explained in 34.remove.notes.txt. That left
+19,154 sequences. 
+
+For these 19,154, I divided them into two classes:
+
+"sub"  class: start position in the source sequence is != 1 (1063 sequences)
+"full" class: start position in the source sequence is == 1 (18091 sequences)
+
+I then wrote a script called check-map-with-cmsearch.pl to do further
+analysis of these two sets, and present results based on that script's
+output below. That script and some auxiliary scripts can be found
+here:
+
+https://github.com/nawrockie/16S-typestrain-analysis
+
+Notes can be found here:
+/panfs/pan1/infernal/notebook/17_0810_typestrain_genome_coords/00LOG.txt
+
+Briefly, check-map-with-cmsearch.pl does the following:
+
+- Run cmsearch using RF00177.cm and RF01959.cm against all source
+  sequences.
+
+- For each sequence in the map file, compares the current coordinates
+  of sequence with the predicted coordinates in cmsearch and detect
+  the following 'unexpected features':
+
+  1. NoInfernalPrediction: no Infernal prediction overlaps (only 1 of
+     these) 
+
+  2. PredictionDisagreesWithMap: start and/or end point of the highest
+     scoring cmsearch prediction are not identical to the 'current'
+     coordinates in the map file.
+
+  3. MapLengthDiffersFromActual: length of type sequence currently in
+     GenBank differs from length derived from map coordinates.
+
+  4. MapSequenceDiffersFromActual: length of type sequence currently
+     in GenBank is identical to map length (no
+     MapLengthDiffersFromActual error) BUT the sequence extracted from
+     the source sequence according to the map coordinates differs from
+     the corresponding type sequence.
+
+  5. MapStrandDiffersFromPrediction: strand of predicted hit disagrees
+     with what is in map file (in map file, if start <= stop, we
+     assume + strand, else -).
+
+  6. MapCoordsOutOfBounds: either the start or stop position in the
+     map file is greater than the length of the source sequence in
+     GenBank.
+
+Each type sequence can have 0 or more errors. If it has 0 errors, then
+the sequence is considered CLEAN. A sequence cannot have
+MapLengthDiffersFromActual and MapSequenceDiffersFromActual
+errors. But, if it has the MapLengthDiffersFromActual error, the
+sequence must be different.
+
+The file sub.20170817.tbl is a tabular file with the results for the
+'sub' set. The file full.20170817.tbl is a tabular file with the
+results for the 'full' set. A description of lines in that file is
+below, see 'Tabular file format'.
+
+The main reason that Rich asked me to look into this was to see if
+there were sequences that derived from genomes (or larger sequences,
+i.e those in the 'sub' set), that were not full length but possibly
+could be if a larger subsequence was extracted from the source
+sequence. 
+
+I've created lists of those sequences, by selecting sequences I term
+'changeable', defined as a sequence for which the
+PredictionDisagreesWithMap unexpected feature exists and for which an
+alignment of the predicted cmsearch hit is a full length alignment to
+the corresponding Rfam model (archaea or bacteria).
+
+This command was used to extract them:
+$ cat sub.20170818.check.tbl | grep "PredictionDisagreesWithMap" | grep "\[\]" > sub.20170818.check.changeable.tbl
+$ cat full.20170818.check.tbl | grep "PredictionDisagreesWithMap" | grep "\[\]" > full.20170818.check.changeable.tbl
+
+There are 734 'sub' sequences and 29 'full' sequences that meet the
+'changeable' criteria.
+
+
+There are some other things that could be investigated in this
+dataset:
+
+D) sequences with a MapLengthDiffersFromActual are possibly sequences
+   where an intron has been removed from the type sequence. This could
+   be a way of creating a more complete list of sequences with
+   introns. 
+
+E) sequences with a MapStrandDiffersFromPrediction are examples where
+   the coordinates in the map file (and possibly whatever data source
+   the map file is being derived from) are not showing the correct
+   strand. I'm not sure if it is desirable to fix this or not.
+
+F) sequences with MapSequenceDiffersFromActual are sequences where the
+   sequence length is correct (no MapLengthDiffersFromActual error)
+   but the extracted sequence differs. Should these be investigated? 
+
+G) sequences with MapCoordsOutOfBounds may correspond to sequences 
+   where the source sequence has been updated but the coordinates in
+   the map file (and possibly whatever data source
+   the map file is being derived from) are not showing the correct
+   strand. I'm not sure if it is desirable to fix this or not.
+
+----------------------------
+Tabular File Format:
+
+Format of the '.tbl' suffixed files:
+Example line:
+$ head sub.20170818.check.tbl
+#                type                    full                  current-coords        predicted-coords         coord-difference                                         
+#      pred      strain      source        or  cur prd  ---------------------   ---------------------    ---------------------    predicted   known                    
+#idx   domain    accn        accn         sub  str str       start       stop        start       stop         start       stop   model-span  intron  unexpected_features
+#----  -------   ----------  ----------  ----  --- ---  ---------- ----------   ---------- ----------    ---------- ----------  -----------  ------  ------------------
+1      bacteria  NG_041947   CP001348     sub    +   +      453791     455431       453784     455436             7         -5     1-1533[]      no  PredictionDisagreesWithMap(map:453791-455431!=prediction:453784-455436);
+2      archaea   NG_041957   CP003316     sub    +   +     1430990    1433181      1430990    1433184             0         -3     1-1477[]      no  PredictionDisagreesWithMap(map:1430990-1433181!=prediction:1430990-1433184);
+3      archaea   NG_041958   AE009441     sub    +   +     1089640    1091850      1089640    1091852             0         -2     1-1477[]      no  PredictionDisagreesWithMap(map:1089640-1091850!=prediction:1089640-1091852);
+4      archaea   NG_041961   CP000660     sub    +   -      625532     623326       625534     623323            -2          3     1-1477[]      no  PredictionDisagreesWithMap(map:625532-623326!=prediction:625534-623323);MapStrandDiffersFromPrediction(predicted:-!=map:+);;
+5      archaea   NG_042066   AP012489     sub    +   -     1166817    1165170      1166817    1165168             0          2     1-1477[]      no  PredictionDisagreesWithMap(map:1166817-1165170!=prediction:1166817-1165168);MapStrandDiffersFromPrediction(predicted:-!=map:+);;
+6      archaea   NG_042067   CP001014     sub    +   +      690421     692612       690419     692615             2         -3     1-1477[]      no  PredictionDisagreesWithMap(map:690421-692612!=prediction:690419-692615);
+
+Column  1: index of type sequence in map file (sub.1063.NR.map or
+           full.18091.NR.map)
+Column  2: domain, archaea or bacteria
+Column  3: type strain accession
+Column  4: source accession
+Column  5: class, either full (if map start coordinate is 1) else sub
+Column  6: current strand, strand implied in map file
+Column  7: predicted strand, strand of overlapping cmsearch hit
+Column  8: current-coords start, map start position
+Column  9: current-coords stop, map stop position
+Column 10: predicted-coords start, cmsearch predicted start position
+Column 11: predicted-coords stop, cmsearch predicted stop position
+Column 12: coord-difference start, column 8 minus column 10
+Column 13: coord-difference stop, column 9 minus column 11
+Column 14: predicted model-span, model coordinates of alignment 
+           of cmsearch prediction to the Rfam model, two characters
+           after the span indicate if alignment extends to 5' end
+           (if yes first character is '[' else '.') and to 3' end 
+           (if yes first character is ']' else '.').
+Column 16: list of unexpected features for this sequence with some 
+           details (e.g. coordinates) after each unexpected feature in 
+           parantheses.
+
+------------------
+Updating Map File:
+
+There were about 20 lines/sequences in the original map file Rich sent
+me that were misformatted. I fixed the formatting. An example is:
+
+NR_044847|604018092_0_1691_1|
+
+(correct formatting is: NG_041947|CP001348:453791-455431|)
+
+Most of the incorrectly formatted lines were sequences that had known
+introns. I determined the correct sources by using edirect, like this:
+
+esearch -db nuccore -query NG_041947 | efetch -format gpc | xtract -insd INSDSeq_comment
+NR_102764.2	REVIEWED REFSEQ: This record has been curated by NCBI staff. This record is derived from an annotated genomic sequence (AE009441).; On Apr 1, 2015 this sequence version replaced gi:507147957.
+
+This led me the source sequence (AE009441). 
+Then I built a CM from each type sequence and searched its source
+sequence to determine the coordinates of the type sequence in the
+source sequence. This was mostly a manual process.
+
+==============================
+-----------------------------------------------
+
+What I did:
+
+I took the file NR.map that Rich sent me on 7/18 and updated it as
+follows: 
+
+There were about 20 lines/sequences in that file that were
+misformatted. I fixed the formatting. An example is:
+
+NR_044847|604018092_0_1691_1|
+
+(correct formatting is: NG_041947|CP001348:453791-455431|)
+
+Most of the incorrectly formatted lines were sequences that had known
+introns. 
+
+That gave me the file 19188.NR.map.
+
+I then used the script:
+perl map2typelist.pl 19188.NR.map | sort | uniq > 19188.type.fa 
+
+and ran ribotyper on this set. I then manually examined the sequences
+that had any unexpected features (except MultipleHits, which I
+ignored).  This led to the removal of 34 typestrain sequences that I
+think are bad. These are listed in the file 34.remove.list.txt and
+explained in 34.remove.notes.txt.
+
+I removed the corresponding 34 lines from 19188.NR.map to get
+19154.NR.map.
+
+I then split up the remaining 19154 lines in the 19154.NR.map file
+into two classes: 
+
+full: mapped sequence coordinate begins at position 1 (18091 sequences)
+sub:  mapped sequence coordinate does not begin at position 1 (1024 sequences)
+
+To give two new map files:
+full.18091.NR.map
+sub.1024.NR.map
+
+By executing these commands:
+perl map2full-subset.pl 19154.NR.map > 18091.full.NR.map
+perl map2sub-subset.pl 19154.NR.map > sub.1063.NR.map
+
+For each of these map files, I did the following:
+
+Used the script map2source.pl to extract the 'source' accessions, the
+accessions with the sequences that 16S-typestrain sequences derive
+from, according to the map file:
+
+perl map2source.pl 19154.
+
+perl map2source.pl sub.1063.NR.map | sort | uniq > sub.1024.source.ntlist
+perl map2typelist.pl sub.1063.NR.map | sort | uniq > sub.1063.type.ntlist
+
+perl map2source.pl full.18091.NR.map | sort | uniq > full.18081.source.ntlist
+perl map2typelist.pl full.18091.NR.map | sort | uniq > full.18091.type.ntlist
+
+And then fetched the sequences using idfetch
+
+idfetch -t 5 -c 1 -G sub.1063.type.ntlist > sub.1063.type.fa
+idfetch -t 5 -c 1 -G sub.1024.source.ntlist > sub.1024.source.fa 
+idfetch -t 5 -c 1 -G full.18081.source.ntlist > full.18081.source.fa
+idfetch -t 5 -c 1 -G acc full.18091.type.ntlist > full.18091.type.fa
+
+Then I used a script called check-map-with-cmsearch.pl along with an
+input introns.txt (which is the 16S-typestrain accessions with introns
+known to Rich) to do the following, for each the 'sub' and 'full'
+sets:
+
+- Run cmsearch using RF00177.cm and RF01959.cm against all source
+  sequences.
+- For each sequence in the map file, compare the current coordinates
+  of sequence with the predicted coordinates in cmsearch and detect
+  the following 'unexpected features':
+
+  1. NoInfernalPrediction: no Infernal prediction overlaps (0 of
+     these)
+
+  2. PredictionDisagrees: start and/or end point of the highest
+     scoring cmsearch prediction are not identical to the 'current'
+     coordinates in the map file.
+
+  3. MapLengthDiffersActualNoIntron: length of sequence currently in
+     GenBank differs from length derived from map coordinates, and
+     sequence does not have a known intron
+
+  4. MapStrandDiffersPrediction: strand of predicted hit disagrees
+     with what is in map file (in map file, if start <= stop, we
+     assume + strand, else -).
+
+--------------------------------
+Final look at the 'changeable' sequences aligned:
+
+<[(17_0810_typestrain_genome_coords)]> cat sub.20170818.check.changeable.tbl | grep -v ^\# | awk '{ print $3 }' > sub.20170818.check.changeable.list.txt
+<[(17_0810_typestrain_genome_coords)]> cat full.20170818.check.changeable.tbl | grep -v ^\# | awk '{ print $3 }' > full.20170818.check.changeable.list.txt
+<[(17_0810_typestrain_genome_coords)]> cp sub.20170818.check.changeable.list.txt post-to-jira-081817/
+<[(17_0810_typestrain_genome_coords)]> cp full.20170818.check.changeable.list.txt post-to-jira-081817/
+<[(17_0810_typestrain_genome_coords)]> cat sub.20170818.check.changeable.tbl | grep -v ^\# | grep 'archaea' | awk '{ print $3 }' > sub.arc.20170818.check.changeable.list.txt
+<[(17_0810_typestrain_genome_coords)]> cat sub.20170818.check.changeable.tbl | grep -v ^\# | grep 'bacteria' | awk '{ print $3 }' > sub.bac.20170818.check.changeable.list.txt
+<[(17_0810_typestrain_genome_coords)]> cat full.20170818.check.changeable.tbl | grep -v ^\# | grep 'archaea' | awk '{ print $3 }' > full.arc.20170818.check.changeable.list.txt
+<[(17_0810_typestrain_genome_coords)]> cat full.20170818.check.changeable.tbl | grep -v ^\# | grep 'bacteria' | awk '{ print $3 }' > full.bac.20170818.check.changeable.list.txt
+
+<[(17_0810_typestrain_genome_coords)]> esl-alimanip --seq-k sub.arc.20170818.check.changeable.list.txt sub.20170817.check.RF01959.predicted.stk | esl-reformat --mingap stockholm - > tmp.stk
+<[(17_0810_typestrain_genome_coords)]> esl-alimanip --seq-k sub.bac.20170818.check.changeable.list.txt sub.20170817.check.RF00177.predicted.stk | esl-reformat --mingap stockholm - > tmp.stk
+

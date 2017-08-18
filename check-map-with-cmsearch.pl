@@ -201,7 +201,7 @@ foreach $stype_name (sort keys %map_stype_idx_H) {
   }
   if(exists $type_seq_H{$ltype_name} && exists $map_seq_H{$ltype_name}) { 
     if($type_seq_H{$ltype_name} ne $map_seq_H{$ltype_name}) { 
-      $out_tbl_AH[($idx-1)]{"uf_MapSequenceDiffersActual"} = "VOID";
+      $out_tbl_AH[($idx-1)]{"uf_MapSequenceDiffersFromActual"} = "VOID";
 #      printf("$stype_name sequence differs");
     }  
     else { 
@@ -212,10 +212,10 @@ foreach $stype_name (sort keys %map_stype_idx_H) {
 
 # finally parse the cmalign file and get start and end coordinates of all predictions
 if($at_least_one_archaea) { 
-  parse_cmalign_file($predicted_arc_cmalign_file, \@out_tbl_AH, \%stype_seqidx_H);
+  parse_cmalign_file($predicted_arc_cmalign_file, \@out_tbl_AH, \%map_stype_idx_H);
 }
 if($at_least_one_bacteria) { 
-  parse_cmalign_file($predicted_bac_cmalign_file, \@out_tbl_AH, \%stype_seqidx_H);
+  parse_cmalign_file($predicted_bac_cmalign_file, \@out_tbl_AH, \%map_stype_idx_H);
 }
                      
 
@@ -582,8 +582,8 @@ sub process_tblout_file {
     $out_tbl_AHR->[($idx-1)]{"pred_cmto"}       = "-";
     $out_tbl_AHR->[($idx-1)]{"uf_NoInfernalPrediction"}       = "VOID";
     $out_tbl_AHR->[($idx-1)]{"uf_PredictionDisagreesWithMap"}     = "";
-    $out_tbl_AHR->[($idx-1)]{"uf_MapStrandDiffersPredicted"}  = "";
-    $out_tbl_AHR->[($idx-1)]{"uf_MapSequenceDiffersActual"}   = "";
+    $out_tbl_AHR->[($idx-1)]{"uf_MapStrandDiffersFromPrediction"}  = "";
+    $out_tbl_AHR->[($idx-1)]{"uf_MapSequenceDiffersFromActual"}   = "";
     if($stype_len_HR->{$stype_name} != $map_stype_len_HR->{$stype_name}) { 
       $out_tbl_AHR->[($idx-1)]{"uf_MapLengthDiffersFromActual"} = "(actual:" . $stype_len_HR->{$stype_name} . "!=map:" . $map_stype_len_HR->{$stype_name} . ");";
     }
@@ -686,7 +686,7 @@ sub process_tblout_file {
                 $out_tbl_AHR->[($idx-1)]{"uf_PredictionDisagreesWithMap"} = "(map:" . $cur_mapstart . "-" . $cur_mapstop . "!=prediction:" . $seqfrom . "-" . $seqto . ")"; 
               }
               if($stype_strand_HR->{$stype_name} ne $strand) { 
-                $out_tbl_AHR->[($idx-1)]{"uf_MapStrandDiffersPredicted"} = "(predicted:" . $strand . "!=map:" . $stype_strand_HR->{$stype_name} . ");";
+                $out_tbl_AHR->[($idx-1)]{"uf_MapStrandDiffersFromPrediction"} = "(predicted:" . $strand . "!=map:" . $stype_strand_HR->{$stype_name} . ");";
               }
               # already filled in values for uf_MapLengthDiffersFromActual and uf_MapCoordsOutOfBounds when initializing
 
@@ -791,15 +791,15 @@ sub output_tabular_file {
 
   my $i;
   my %ct_H = ();
-  $ct_H{"input"}                        = scalar(@{$out_tbl_AHR});
-  $ct_H{"predicted"}                    = 0;
-  $ct_H{"uf_NoInfernalPrediction"}      = 0;
-  $ct_H{"CLEAN"}                        = 0;
-  $ct_H{"uf_PredictionDisagreesWithMap"}    = 0;
+  $ct_H{"input"}                         = scalar(@{$out_tbl_AHR});
+  $ct_H{"predicted"}                     = 0;
+  $ct_H{"uf_NoInfernalPrediction"}       = 0;
+  $ct_H{"CLEAN"}                         = 0;
+  $ct_H{"uf_PredictionDisagreesWithMap"} = 0;
   $ct_H{"uf_MapLengthDiffersFromActual"}    = 0;
   $ct_H{"uf_MapCoordsOutOfBounds"}      = 0;
-  $ct_H{"uf_MapStrandDiffersPredicted"} = 0;
-  $ct_H{"uf_MapSequenceDiffersActual"}  = 0;
+  $ct_H{"uf_MapStrandDiffersFromPrediction"} = 0;
+  $ct_H{"uf_MapSequenceDiffersFromActual"}  = 0;
   $ct_H{"CompleteModelSpan"}            = 0;
 
   for($idx = 1; $idx <= scalar(@{$out_tbl_AHR}); $idx++) { 
@@ -824,24 +824,25 @@ sub output_tabular_file {
                 $uf_str);
   }
   close(OUT);
+  $ct_H{"predicted"} = $ct_H{"input"} - $ct_H{"uf_NoInfernalPrediction"};
 
   print("\n# Saved tabular output to $out_tbl_file\n");
 
   print("\n# Summary statistics:\n");
   print("\n");
-  printf("%-28s  %6s  %6s\n", "category", "count", "fraction");
-  printf("%-28s  %6s  %6s\n", "--------------------", "------", "------");
-  printf("%-28s  %6d  %6.4f\n", "Input",                     $ct_H{"input"},                        $ct_H{"input"}                        / $ct_H{"input"});
-  printf("%-28s  %6d  %6.4f\n", "Predicted",                 $ct_H{"predicted"},                    $ct_H{"predicted"}                    / $ct_H{"input"});
-  printf("%-28s  %6d  %6.4f\n", "NoInfernalPrediction",      $ct_H{"uf_NoInfernalPrediction"},      $ct_H{"uf_NoInfernalPrediction"}      / $ct_H{"input"});
-  printf("%-28s  %6d  %6.4f\n", "CLEAN",                     $ct_H{"CLEAN"},                        $ct_H{"CLEAN"}                        / $ct_H{"input"});
-  printf("%-28s  %6d  %6.4f\n", "PredictionDisagreesWithMap" ,   $ct_H{"uf_PredictionDisagreesWithMap"},    $ct_H{"uf_PredictionDisagreesWithMap"}    / $ct_H{"input"});
-  printf("%-28s  %6d  %6.4f\n", "MapLengthDiffersFromActual",    $ct_H{"uf_MapLengthDiffersFromActual"},    $ct_H{"uf_MapLengthDiffersFromActual"}    / $ct_H{"input"});
-  printf("%-28s  %6d  %6.4f\n", "MapSequenceDiffersActual",  $ct_H{"uf_MapSequenceDiffersActual"},  $ct_H{"uf_MapSequenceDiffersActual"}  / $ct_H{"input"});
-  printf("%-28s  %6d  %6.4f\n", "MapCoordsOutOfBounds",      $ct_H{"uf_MapCoordsOutOfBounds"},      $ct_H{"uf_MapCoordsOutOfBounds"}      / $ct_H{"input"});
-  printf("%-28s  %6d  %6.4f\n", "MapStrandDiffersPredicted", $ct_H{"uf_MapStrandDiffersPredicted"}, $ct_H{"uf_MapStrandDiffersPredicted"} / $ct_H{"input"});
-  printf("#\n");
-  printf("%-28s  %6d  %6.4f\n", "PredictionCompleteModelSpan", $ct_H{"CompleteModelSpan"}, $ct_H{"CompleteModelSpan"} / $ct_H{"input"});
+  printf("%-35s  %6s  %6s\n", "category", "count", "fraction");
+  printf("%-35s  %6s  %6s\n", "--------------------", "------", "------");
+  printf("%-35s  %6d  %6.4f\n", "Input",                     $ct_H{"input"},                        $ct_H{"input"}                        / $ct_H{"input"});
+  printf("%-35s  %6d  %6.4f\n", "Predicted",                 $ct_H{"predicted"},                    $ct_H{"predicted"}                    / $ct_H{"input"});
+  printf("%-35s  %6d  %6.4f\n", "NoInfernalPrediction",      $ct_H{"uf_NoInfernalPrediction"},      $ct_H{"uf_NoInfernalPrediction"}      / $ct_H{"input"});
+  printf("%-35s  %6d  %6.4f\n", "CLEAN",                     $ct_H{"CLEAN"},                        $ct_H{"CLEAN"}                        / $ct_H{"input"});
+  printf("%-35s  %6d  %6.4f\n", "PredictionDisagreesWithMap" ,   $ct_H{"uf_PredictionDisagreesWithMap"},    $ct_H{"uf_PredictionDisagreesWithMap"}    / $ct_H{"input"});
+  printf("%-35s  %6d  %6.4f\n", "MapLengthDiffersFromActual",    $ct_H{"uf_MapLengthDiffersFromActual"},    $ct_H{"uf_MapLengthDiffersFromActual"}    / $ct_H{"input"});
+  printf("%-35s  %6d  %6.4f\n", "MapSequenceDiffersFromActual",  $ct_H{"uf_MapSequenceDiffersFromActual"},  $ct_H{"uf_MapSequenceDiffersFromActual"}  / $ct_H{"input"});
+  printf("%-35s  %6d  %6.4f\n", "MapCoordsOutOfBounds",      $ct_H{"uf_MapCoordsOutOfBounds"},      $ct_H{"uf_MapCoordsOutOfBounds"}      / $ct_H{"input"});
+  printf("%-35s  %6d  %6.4f\n", "MapStrandDiffersFromPrediction", $ct_H{"uf_MapStrandDiffersFromPrediction"}, $ct_H{"uf_MapStrandDiffersFromPrediction"} / $ct_H{"input"});
+  printf("\n");
+  printf("%-35s  %6d  %6.4f\n", "PredictionCompleteModelSpan", $ct_H{"CompleteModelSpan"}, $ct_H{"CompleteModelSpan"} / $ct_H{"input"});
   return;
 }
 
@@ -914,8 +915,8 @@ sub create_ufeature_string {
   foreach my $uf ("uf_NoInfernalPrediction", 
                   "uf_PredictionDisagreesWithMap",
                   "uf_MapLengthDiffersFromActual",
-                  "uf_MapSequenceDiffersActual",
-                  "uf_MapStrandDiffersPredicted",
+                  "uf_MapSequenceDiffersFromActual",
+                  "uf_MapStrandDiffersFromPrediction",
                   "uf_MapCoordsOutOfBounds") { 
     if(! exists $output_HR->{$uf}) { 
       die "ERROR in $sub_name, output_HR $uf does not exist"; 
@@ -925,7 +926,7 @@ sub create_ufeature_string {
     }
     if($output_HR->{$uf} ne "") { 
       my $uf_toprint = $uf;
-      $uf_toprint =~ s/^uf-//;
+      $uf_toprint =~ s/^uf\_//;
       $uf_str .= $uf_toprint;
       if($output_HR->{$uf} ne "VOID") { 
         $uf_str .= $output_HR->{$uf};
@@ -983,6 +984,7 @@ sub create_modelspan_string {
   }
   elsif($output_HR->{"domain"} eq "bacteria") { 
     $modelspan_str =  $output_HR->{"pred_cmfrom"} . "-" . $output_HR->{"pred_cmto"};
+
     if($output_HR->{"pred_cmfrom"} eq "-" && $output_HR->{"pred_cmto"} eq "-") { 
       $modelspan_str = "-";
     }
@@ -995,6 +997,9 @@ sub create_modelspan_string {
     }
     elsif($output_HR->{"pred_cmto"} == 1533) { 
       $modelspan_str .= ".]";
+    }
+    else { 
+      $modelspan_str .= "..";
     }
   }
   else { 
@@ -1057,7 +1062,7 @@ sub parse_cmalign_file {
   my $sub_name = "parse_cmalign_file";
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($cmalign_file, $out_tbl_AHR, $stype_idx_HR) = @_;
+  my ($cmalign_file, $out_tbl_AHR, $map_stype_idx_HR) = @_;
 
   open(IN, $cmalign_file) || die "ERROR unable to open cmalign file $cmalign_file for reading";
 
@@ -1076,10 +1081,10 @@ sub parse_cmalign_file {
       my @el_A = split(/\s+/, $line);
       if(scalar(@el_A) != 12) { die "ERROR in $sub_name, unexpected number of tokens on cmalign output file line: $line";  }
       my ($stype_name, $cmfrom, $cmto) = ($el_A[1], $el_A[3], $el_A[4]);
-      if(! exists $stype_idx_HR->{$stype_name}) { 
+      if(! exists $map_stype_idx_HR->{$stype_name}) { 
         die "ERROR in $sub_name, $stype_name does not exist in stype_idx_HR";
       }
-      my $idx = $stype_idx_HR->{$stype_name};
+      my $idx = $map_stype_idx_HR->{$stype_name};
       $out_tbl_AHR->[($idx-1)]{"pred_cmfrom"} = $cmfrom;
       $out_tbl_AHR->[($idx-1)]{"pred_cmto"}   = $cmto;
     }
